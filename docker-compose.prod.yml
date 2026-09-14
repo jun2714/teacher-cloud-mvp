@@ -1,0 +1,39 @@
+# 生产部署：浏览器只访问 80 端口
+# 使用前先改 backend/.env：DEBUG=0、SECRET_KEY、ALLOWED_HOSTS、CSRF_TRUSTED_ORIGINS
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DEBUG: "0"
+      SQLITE_PATH: /app/data/db.sqlite3
+      GUNICORN_WORKERS: "2"
+      GUNICORN_TIMEOUT: "300"
+    volumes:
+      - sqlite_data:/app/data
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+      - cache_data:/app/cache
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.nginx
+    ports:
+      - "80:80"
+    volumes:
+      - static_data:/var/www/static:ro
+      - media_data:/var/www/media:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  sqlite_data:
+  media_data:
+  static_data:
+  cache_data:

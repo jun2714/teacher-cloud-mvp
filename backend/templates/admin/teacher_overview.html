@@ -1,0 +1,62 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<style>
+  .ov { font-family: inherit; }
+  .ov-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin: 0 0 22px; }
+  .ov-card { background: #fff; border: 1px solid #e8ecf2; border-radius: 12px; padding: 14px 16px; }
+  .ov-card b { display: block; font-size: 22px; color: #1a6dff; line-height: 1.2; }
+  .ov-card span { display: block; margin-top: 4px; color: #6b7485; font-size: 12px; }
+  .ov table { width: 100%; border-collapse: collapse; background: #fff; }
+  .ov th, .ov td { border-bottom: 1px solid #eef1f6; padding: 10px 8px; text-align: left; font-size: 13px; }
+  .ov th { color: #6b7485; font-weight: 600; background: #f8fafc; }
+  .ov .muted { color: #8a93a3; }
+</style>
+<div class="ov">
+  <div class="ov-cards">
+    <div class="ov-card"><b>{{ stats.teachers }}</b><span>教师人数</span></div>
+    <div class="ov-card"><b>{{ stats.new_week }}</b><span>近 7 天新注册</span></div>
+    <div class="ov-card"><b>{{ stats.plans }}</b><span>教学设计</span></div>
+    <div class="ov-card"><b>{{ stats.reviews }}</b><span>听评课</span></div>
+    <div class="ov-card"><b>{{ stats.notes }}</b><span>教研笔记</span></div>
+    <div class="ov-card"><b>{{ stats.reports }}</b><span>教研报告</span></div>
+    <div class="ov-card"><b>{{ stats.questions }}</b><span>社区提问</span></div>
+    <div class="ov-card"><b>{{ stats.answers }}</b><span>教师回答</span></div>
+  </div>
+
+  <h2>教师列表</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>姓名</th>
+        <th>手机号</th>
+        <th>学校 / 教研组</th>
+        <th>学科年级</th>
+        <th>教案</th>
+        <th>听评课</th>
+        <th>笔记</th>
+        <th>报告</th>
+        <th>提问</th>
+        <th>最近登录</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in teachers %}
+      <tr>
+        <td><a href="{% url 'admin:core_teacherprofile_change' t.id %}">{{ t.user.first_name|default:t.user.username }}</a></td>
+        <td>{{ t.user.email|default:"—" }}</td>
+        <td>{{ t.school_name }}<div class="muted">{{ t.department }}</div></td>
+        <td>{{ t.subject }} · {{ t.grade }}</td>
+        <td>{{ t.plans_count }}</td>
+        <td>{{ t.reviews_count }}</td>
+        <td>{{ t.notes_count }}</td>
+        <td>{{ t.reports_count }}</td>
+        <td>{{ t.questions_count }}</td>
+        <td>{% if t.user.last_login %}{{ t.user.last_login|date:"Y-m-d H:i" }}{% else %}<span class="muted">从未登录</span>{% endif %}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="10" class="muted">还没有教师账号</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
