@@ -1,16 +1,16 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import NoticeBell from '../components/NoticeBell.vue'
-import imgCap from '../assets/images/home-cap.png'
-import imgAI from '../assets/images/home-chat.png'
-import imgPencil from '../assets/images/home-pencil.png'
-import imgLesson from '../assets/images/home-lesson-illus.png'
-import imgHeadphone from '../assets/images/home-headphone.png'
-import imgNoteIcon from '../assets/images/home-note-icon.png'
-import imgRecLesson from '../assets/images/rec-lesson.png'
-import imgRecNotes from '../assets/images/rec-notes.png'
-import imgResBook from '../assets/images/res-book-banner.png'
-import imgResChart from '../assets/images/res-chart-banner.png'
+import imgCap from '../assets/images/home-cap.webp'
+import imgAI from '../assets/images/home-chat.webp'
+import imgPencil from '../assets/images/home-pencil.webp'
+import imgLesson from '../assets/images/home-lesson-illus.webp'
+import imgHeadphone from '../assets/images/home-headphone.webp'
+import imgNoteIcon from '../assets/images/home-note-icon.webp'
+import imgRecLesson from '../assets/images/rec-lesson.webp'
+import imgRecNotes from '../assets/images/rec-notes.webp'
+import imgResBook from '../assets/images/res-book-banner.webp'
+import imgResChart from '../assets/images/res-chart-banner.webp'
 
 const router = useRouter()
 </script>
@@ -30,7 +30,7 @@ const router = useRouter()
             <rect x="5" y="3" width="14" height="18" rx="2.5" stroke="#2563eb" stroke-width="1.8" />
             <path d="M9 8h6M9 12h6M9 16h4" stroke="#2563eb" stroke-width="1.8" stroke-linecap="round" />
           </svg> -->
-          <img class="home-chat" :src="imgAI" alt="AI" />
+          <img class="home-chat" :src="imgAI" alt="AI" width="42" height="42" decoding="async" fetchpriority="high" />
         </span>
         <div>
           <b>您好，欢迎使用<span>教研云智能助手</span></b>
@@ -47,15 +47,15 @@ const router = useRouter()
             <span>创新教学</span>
           </div>
         </div>
-        <img class="hero-illus" :src="imgCap" alt="" />
+        <img class="hero-illus" :src="imgCap" alt="" width="112" height="112" decoding="async" />
       </div>
     </section>
 
     <!-- 教学设计辅助 -->
     <section class="lesson-card" @click="router.push('/lesson-design')">
-      <img class="lesson-illus" :src="imgLesson" alt="" />
+      <img class="lesson-illus" :src="imgLesson" alt="" width="72" height="72" decoding="async" />
       <div class="lesson-head">
-        <img class="lesson-icon" :src="imgPencil" alt="" />
+        <img class="lesson-icon" :src="imgPencil" alt="" width="32" height="32" decoding="async" />
         <h2>个人教学设计</h2>
       </div>
       <p class="lesson-desc">按跟岗研修个人教学设计格式生成，可用于第六天教学成果汇报</p>
@@ -74,20 +74,20 @@ const router = useRouter()
     <section class="rec-scroll">
       <article class="rec-card" @click="router.push('/lesson-review')">
         <div class="rec-top">
-          <img class="rec-icon" :src="imgHeadphone" alt="" />
+          <img class="rec-icon" :src="imgHeadphone" alt="" width="32" height="32" decoding="async" />
           <b>听评课助手</b>
         </div>
         <p class="rec-desc">上传课堂录音/视频可自动转写成文字，再生成多维评课分析。</p>
-        <img class="rec-cover" :src="imgRecLesson" alt="听评课助手" />
+        <img class="rec-cover" :src="imgRecLesson" alt="听评课助手" loading="lazy" decoding="async" />
       </article>
 
       <article class="rec-card purple" @click="router.push('/notes')">
         <div class="rec-top">
-          <img class="rec-icon" :src="imgNoteIcon" alt="" />
+          <img class="rec-icon" :src="imgNoteIcon" alt="" width="32" height="32" decoding="async" />
           <b>教研笔记</b>
         </div>
         <p class="rec-desc">随时记录灵感与思考，支持结构化整理与报告生成。</p>
-        <img class="rec-cover" :src="imgRecNotes" alt="教研笔记" />
+        <img class="rec-cover" :src="imgRecNotes" alt="教研笔记" loading="lazy" decoding="async" />
       </article>
     </section>
 
@@ -95,8 +95,8 @@ const router = useRouter()
       <h2>精选优质课程资源</h2>
       <p>覆盖多学段多学科，<span>一站式获取教学素材</span></p>
       <div class="resource-grid">
-        <img class="res-banner" :src="imgResBook" alt="告别备课内耗，让教学更轻松" />
-        <img class="res-banner" :src="imgResChart" alt="从走过场到真提升，教研实效提升" />
+        <img class="res-banner" :src="imgResBook" alt="告别备课内耗，让教学更轻松" loading="lazy" decoding="async" />
+        <img class="res-banner" :src="imgResChart" alt="从走过场到真提升，教研实效提升" loading="lazy" decoding="async" />
       </div>
     </section>
   </main>

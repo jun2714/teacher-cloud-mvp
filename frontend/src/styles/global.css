@@ -36,7 +36,7 @@ html,
 body {
   margin: 0;
   min-height: 100%;
-  background: #0f172a;
+  background: #eaf3ff;
 }
 
 body {
@@ -62,16 +62,16 @@ a {
 
 /* —— 手机外壳（桌面预览） —— */
 #app {
+  min-height: 100svh;
   min-height: 100dvh;
   display: flex;
   justify-content: center;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(26, 109, 255, 0.35), transparent 55%),
-    linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  background: #eaf3ff;
 }
 
 .app-frame {
   width: min(100%, var(--app-w));
+  min-height: 100svh;
   min-height: 100dvh;
   margin: 0 auto;
   background: var(--bg);
@@ -86,9 +86,17 @@ a {
 }
 
 @media (min-width: 480px) {
+  html,
+  body {
+    background: #0f172a;
+  }
+
   #app {
     padding: 24px 0;
     align-items: flex-start;
+    background:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(26, 109, 255, 0.35), transparent 55%),
+      linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   }
 
   .app-frame {

@@ -3,6 +3,7 @@ import io
 import random
 import string
 import uuid
+from pathlib import Path
 from django.core.cache import cache
 from PIL import Image, ImageDraw, ImageFont
 
@@ -19,16 +20,37 @@ def _random_text(length=4):
     return "".join(random.choice(chars) for _ in range(length))
 
 
+def _captcha_font(size=40):
+    candidates = [
+        Path(__file__).resolve().parent.parent / "assets" / "DejaVuSans-Bold.ttf",
+        Path(r"C:\Windows\Fonts\arialbd.ttf"),
+        Path(r"C:\Windows\Fonts\arial.ttf"),
+        Path(r"C:\Windows\Fonts\msyhbd.ttc"),
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
+        Path("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"),
+        "arial.ttf",
+    ]
+    for candidate in candidates:
+        path = Path(candidate) if not isinstance(candidate, Path) else candidate
+        try:
+            if path.is_file() or candidate == "arial.ttf":
+                return ImageFont.truetype(str(candidate), size)
+        except OSError:
+            continue
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
+
+
 def _draw_captcha(text):
-    width, height = 130, 46
+    width, height = 220, 72
     image = Image.new("RGB", (width, height), (245, 248, 252))
     draw = ImageDraw.Draw(image)
-    try:
-        font = ImageFont.truetype("arial.ttf", 28)
-    except OSError:
-        font = ImageFont.load_default()
+    font = _captcha_font(40)
 
-    for _ in range(6):
+    for _ in range(4):
         draw.line(
             (
                 random.randint(0, width),
@@ -37,25 +59,28 @@ def _draw_captcha(text):
                 random.randint(0, height),
             ),
             fill=(
-                random.randint(160, 210),
-                random.randint(170, 220),
-                random.randint(190, 235),
+                random.randint(180, 220),
+                random.randint(190, 225),
+                random.randint(210, 235),
             ),
             width=1,
         )
 
+    step = width // (len(text) + 1)
     for i, ch in enumerate(text):
         color = (
-            random.randint(20, 90),
-            random.randint(40, 120),
-            random.randint(140, 220),
+            random.randint(20, 70),
+            random.randint(40, 90),
+            random.randint(120, 190),
         )
-        draw.text((12 + i * 28, random.randint(4, 12)), ch, font=font, fill=color)
+        x = step * (i + 1) - 12
+        y = random.randint(10, 18)
+        draw.text((x, y), ch, font=font, fill=color)
 
-    for _ in range(40):
+    for _ in range(18):
         draw.point(
             (random.randint(0, width - 1), random.randint(0, height - 1)),
-            fill=(random.randint(100, 180), random.randint(100, 180), random.randint(100, 180)),
+            fill=(random.randint(120, 170), random.randint(120, 170), random.randint(140, 190)),
         )
 
     buffer = io.BytesIO()

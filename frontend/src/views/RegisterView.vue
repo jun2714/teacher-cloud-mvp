@@ -4,8 +4,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useSmsCaptcha } from '../composables/useSmsCaptcha'
 import { showAlert } from '../utils/dialog'
-import logoImg from '../assets/icon/teach.png'
-import bgImg from '../assets/images/bg.png'
+import logoImg from '../assets/icon/teach.webp'
+import bgImg from '../assets/images/bg.webp'
 
 const router = useRouter()
 const auth = useAuthStore()

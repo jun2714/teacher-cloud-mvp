@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '../stores/auth'
 import { useNoticeStore } from '../stores/notices'
-import chatIcon from '../assets/images/confused.png'
-import chatIcon1 from '../assets/images/confused1.png'
+import chatIcon from '../assets/images/confused.webp'
+import chatIcon1 from '../assets/images/confused1.webp'
 
 const route = useRoute()
 const router = useRouter()
