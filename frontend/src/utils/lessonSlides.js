@@ -17,7 +17,11 @@ export function plainText(value) {
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '图片：$1（$2）')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1（$2）')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(?<![\w*\\])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?!\*)/g, '$1')
+    .replace(/(?<![\w\\])__([^_\n]+)__(?!\w)/g, '$1')
+    .replace(/(?<![\w_\\])_([^\s_](?:[^_\n]*?[^\s_])?)_(?!\w)/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
+    .replace(/\u2028/g, '\n')
     .replace(/^\s*>\s?/gm, '')
     .trim()
 }
@@ -58,9 +62,11 @@ export function parseLesson(content) {
   const sections = [section]
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    if (/^```/.test(line)) {
+    const fence = line.match(/^(`{3,}|~{3,})/)
+    if (fence) {
       const code = []
-      while (++i < lines.length && !/^```/.test(lines[i].trim())) code.push(lines[i].replace(/\t/g, '    ').trimEnd())
+      const closing = new RegExp('^' + fence[1][0] + '{' + fence[1].length + ',}\\s*$')
+      while (++i < lines.length && !closing.test(lines[i].trim())) code.push(lines[i].replace(/\t/g, '    ').trimEnd())
       while (code.length && !code[0].trim()) code.shift()
       while (code.length && !code.at(-1).trim()) code.pop()
       const indent = Math.min(...code.filter((row) => row.trim()).map((row) => row.match(/^ */)[0].length))
@@ -150,17 +156,25 @@ function coverDetails(metadata) {
   ].filter(Boolean)
 }
 
-const BODY_HEIGHT = 390
+const BODY_BOTTOM = 627 // Leave clear space above the footer at y=657.
 const lineHeight = (size) => size * 1.4
 const rowHeight = (rows, size) => rows.length * lineHeight(size) + rows.slice(1).reduce((sum, row) => sum + (row.gap || 0), 0)
 function blockRows(blocks, size) {
-  return blocks.flatMap((block, index) => wrapText(block.text, 1112, size).map((text, line) => ({
-    text, bold: Boolean(block.emphasis), gap: line === 0 && index ? 10 : 0,
-    blockStart: line === 0,
-  })))
+  return blocks.flatMap((block, index) => {
+    const rows = []
+    let gap = index ? 8 : 0
+    for (const text of wrapText(block.text, 1112, size)) {
+      // Board diagrams use blank lines to separate groups, not as full-height text.
+      // Keep indentation and connecting arrows; only compact the empty space.
+      if (block.preformatted && !text.trim()) { gap = Math.max(gap, size * 0.45); continue }
+      rows.push({ text, bold: Boolean(block.emphasis), gap, blockStart: rows.length === 0 })
+      gap = 0
+    }
+    return rows
+  })
 }
 
-function paginateBlocks(blocks) {
+function paginateBlocks(blocks, height) {
   // Table rows are self-contained teaching stages; other blocks share the available space.
   const groups = []
   let group = []
@@ -171,23 +185,23 @@ function paginateBlocks(blocks) {
   }
   flush()
   return groups.flatMap((blocks) => {
-    for (const size of [28, 26]) {
+    for (const size of [28, 26, 24]) {
       const rows = blockRows(blocks, size)
-      if (rowHeight(rows, size) <= BODY_HEIGHT) return [{ rows, size }]
+      if (rowHeight(rows, size) <= height) return [{ rows, size }]
     }
     const rows = blockRows(blocks, 28)
     const pages = []
     let start = 0
     while (start < rows.length) {
       let end = start + 1
-      while (end < rows.length && rowHeight(rows.slice(start, end + 1), 28) <= BODY_HEIGHT) end++
+      while (end < rows.length && rowHeight(rows.slice(start, end + 1), 28) <= height) end++
       // Keep a short paragraph together when it fits on the following page.
       if (end < rows.length && !rows[end].blockStart) {
         let boundary = end - 1
         while (boundary > start && !rows[boundary].blockStart) boundary--
         let next = end
         while (next < rows.length && !rows[next].blockStart) next++
-        if (boundary > start && rowHeight(rows.slice(boundary, next), 28) <= BODY_HEIGHT) end = boundary
+        if (boundary > start && rowHeight(rows.slice(boundary, next), 28) <= height) end = boundary
       }
       pages.push({ rows: rows.slice(start, end), size: 28 })
       start = end
@@ -197,10 +211,11 @@ function paginateBlocks(blocks) {
       const tail = pages.at(-1), previous = pages.at(-2)
       if (tail.rows.length <= 2 || tail.rows.map((row) => row.text.trim()).join('').length < 40) {
         const combined = [...previous.rows, ...tail.rows]
-        if (rowHeight(combined, 26) <= BODY_HEIGHT) pages.splice(-2, 2, { rows: combined, size: 26 })
+        const mergedSize = [26, 24].find((size) => rowHeight(combined, size) <= height)
+        if (mergedSize) pages.splice(-2, 2, { rows: combined, size: mergedSize })
         else {
           let split = Math.ceil(combined.length / 2)
-          const fits = (index) => rowHeight(combined.slice(0, index), 28) <= BODY_HEIGHT && rowHeight(combined.slice(index), 28) <= BODY_HEIGHT
+          const fits = (index) => rowHeight(combined.slice(0, index), 28) <= height && rowHeight(combined.slice(index), 28) <= height
           // Prefer a paragraph boundary near the middle if both pages still fit.
           const boundary = combined.findIndex((row, index) => index >= 3 && index <= combined.length - 3 && Math.abs(index - split) <= 2 && row.blockStart && fits(index))
           if (boundary !== -1) split = boundary
@@ -250,9 +265,10 @@ export function buildLessonSlides(content, { title = '个人教学设计', topic
     const shortTitle = titleLines.slice(0, 2)
     if (titleLines.length > 2) shortTitle[1] = shortTitle[1].slice(0, -1) + '…'
     const blocks = titleLines.length > 2 ? [{ text: section.title, emphasis: true }, ...section.blocks] : section.blocks
-    const pages = paginateBlocks(blocks)
+    const bodyY = theme.contentImage ? 185 : 237
+    const pages = paginateBlocks(blocks, BODY_BOTTOM - bodyY)
     for (const [index, { rows, size }] of pages.entries()) {
-      let y = theme.contentImage ? 185 : 237
+      let y = bodyY
       const body = rows.map((row, line) => {
         if (line) y += row.gap || 0
         const box = { ...element(row.text, 84, y, 1112, lineHeight(size), size, row.bold ? 'accent' : 'ink', row.bold), body: true }

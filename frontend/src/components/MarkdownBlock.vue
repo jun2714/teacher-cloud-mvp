@@ -23,8 +23,9 @@ function escapeHtml(s) {
 function inline(s) {
   return escapeHtml(s)
     .replace(/\u2028/g, '<br>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+    .replace(/(?<![\w*\\])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?!\*)/g, '<em>$1</em>')
 }
 
 function splitCells(line) {
@@ -56,7 +57,8 @@ function tableHtml(lines) {
 }
 
 const html = computed(() => {
-  const lines = stripRequiredMarks(props.content).split(/\r?\n/)
+  // Parse fences before cleaning prose so board diagrams retain their symbols and spacing.
+  const lines = props.content.split(/\r?\n/)
   const out = []
   let i = 0
   let listBuf = []
@@ -67,12 +69,22 @@ const html = computed(() => {
     }
   }
   while (i < lines.length) {
-    const line = lines[i]
+    const fence = lines[i].trim().match(/^(`{3,}|~{3,})/)
+    if (fence) {
+      flushList()
+      const code = []
+      const closing = new RegExp('^' + fence[1][0] + '{' + fence[1].length + ',}\\s*$')
+      while (++i < lines.length && !closing.test(lines[i].trim())) code.push(lines[i])
+      out.push(`<pre class="markdown-board"><code>${escapeHtml(code.join('\n'))}</code></pre>`)
+      i += 1
+      continue
+    }
+    const line = stripRequiredMarks(lines[i])
     if (line.trim().startsWith('|')) {
       flushList()
       const tableLines = []
       while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i])
+        tableLines.push(stripRequiredMarks(lines[i]))
         i += 1
       }
       out.push(tableHtml(tableLines))
@@ -90,8 +102,8 @@ const html = computed(() => {
     } else if (/^>\s*/.test(line)) {
       flushList()
       out.push(`<blockquote>${inline(line.replace(/^>\s*/, ''))}</blockquote>`)
-    } else if (/^[-*] /.test(line)) {
-      listBuf.push(`<li>${inline(line.slice(2))}</li>`)
+    } else if (/^\s*[-*+]\s+/.test(line)) {
+      listBuf.push(`<li>${inline(line.replace(/^\s*[-*+]\s+/, ''))}</li>`)
     } else if (!line.trim()) {
       flushList()
     } else {

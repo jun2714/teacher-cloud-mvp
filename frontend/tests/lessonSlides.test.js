@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import JSZip from 'jszip'
-import { buildLessonSlides, parseLesson, wrapText, SLIDE_WIDTH, SLIDE_HEIGHT, PROGRAM_NAME } from '../src/utils/lessonSlides.js'
+import { readFileSync } from 'node:fs'
+import { buildLessonSlides, parseLesson, plainText, wrapText, SLIDE_WIDTH, SLIDE_HEIGHT, PROGRAM_NAME, SLIDE_THEMES } from '../src/utils/lessonSlides.js'
 import { createLessonPptx } from '../src/utils/lessonPptx.js'
 
 const sample = '# 跟岗研修个人教学设计\n\n**课题名称**：三角形的认识\n**教师姓名**：王老师\n\n## 一、教学目标\n学生能够辨认三角形。\n\n## 二、教学过程设计\n| 环节 | 教师活动 | 学生活动 | 设计意图 | 时间分配 |\n| --- | --- | --- | --- | --- |\n| 导入新课 | 出示图片 | 观察生活中的图形 | 联系生活经验 | 5分钟 |\n| 合作学习 | 引导比较 | 小组讨论 | 形成判断依据 | 10分钟 |\n\n## 三、教学反思\n保留观察记录。'
@@ -95,11 +96,51 @@ test('short overflow merges at a readable font size; longer continuations are ba
     const slides = buildLessonSlides('## 教学设计\n```\n' + lines.join('\n') + '\n```').filter((slide) => slide.kind === 'content')
     const bodies = slides.map((slide) => slide.elements.filter((box) => box.body))
     assert.deepEqual(bodies.flat().map((box) => box.text), lines)
-    assert.equal(slides.length, count === 10 ? 1 : count === 11 ? 2 : 3)
+    assert.equal(slides.length, count <= 11 ? 1 : 3)
     for (const boxes of bodies) {
       assert.ok(boxes.length >= 3)
-      assert.ok(boxes.every((box) => box.size >= 26 && box.y + box.h <= 627))
+      assert.ok(boxes.every((box) => box.size >= 24 && box.y + box.h <= 627))
       for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i].y >= boxes[i - 1].y + boxes[i - 1].h - 0.01)
+    }
+  }
+})
+
+const tengwang = readFileSync(new URL('./fixtures/tengwang.md', import.meta.url), 'utf8')
+
+test('Tengwang analysis and board stay complete on one page each in every theme', () => {
+  const sections = parseLesson(tengwang).sections
+  for (const theme of SLIDE_THEMES) {
+    const slides = buildLessonSlides(tengwang, { themeId: theme.id })
+    for (const section of sections) {
+      const pages = slides.filter((slide) => slide.section === section.title)
+      assert.equal(pages.length, 1, theme.id + ' ' + section.title)
+      const boxes = pages[0].elements.filter((box) => box.body)
+      const expected = section.blocks.map((block) => block.text).join('').replace(/\s/g, '')
+      assert.equal(boxes.map((box) => box.text).join('').replace(/\s/g, ''), expected)
+      assert.ok(boxes.every((box) => box.size >= 24 && box.y + box.h <= 627))
+      for (let i = 1; i < boxes.length; i++) assert.ok(boxes[i].y >= boxes[i - 1].y + boxes[i - 1].h - 0.01)
+      assert.ok(!boxes.some((box) => /[`*]/.test(box.text)))
+    }
+  }
+})
+
+test('emphasis markers disappear while mathematical and board symbols are preserved', () => {
+  assert.equal(plainText('***重点*** **基础** *注：保留说明。* __加粗__ _强调_'), '重点 基础 注：保留说明。 加粗 强调')
+  assert.equal(plainText('a*b*c x_y_z 2 * 3 = 6 ↓ / | \\'), 'a*b*c x_y_z 2 * 3 = 6 ↓ / | \\')
+  const parsed = parseLesson('## 板书\n~~~~text\n  A\n    ↓\n  B\n~~~~')
+  assert.equal(parsed.sections[0].blocks[0].text, 'A\n  ↓\nB')
+})
+
+test('Tengwang PPTX exports the same merged text and positions as the preview', async () => {
+  const slides = buildLessonSlides(tengwang)
+  const zip = await JSZip.loadAsync(await (await createLessonPptx(slides)).write({ outputType: 'nodebuffer' }))
+  const entries = Object.keys(zip.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+  assert.equal(entries.length, 3)
+  for (const [index, slide] of slides.entries()) {
+    const xml = await zip.file(`ppt/slides/slide${index + 1}.xml`).async('string')
+    for (const box of slide.elements.filter((box) => box.body)) {
+      assert.ok(xml.includes('<a:t>' + box.text + '</a:t>'), box.text)
+      assert.ok(xml.includes('y="' + Math.round(box.y * 9525) + '"'))
     }
   }
 })

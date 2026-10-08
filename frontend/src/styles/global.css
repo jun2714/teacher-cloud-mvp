@@ -1178,6 +1178,29 @@ a {
   color: #2a3140;
 }
 
+.markdown ul {
+  margin: 6px 0 12px;
+  padding-left: 24px;
+}
+
+.markdown li {
+  margin: 4px 0;
+}
+
+.markdown-board {
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--line);
+  background: #f8f9fc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
+.markdown-board, .markdown-board code {
+  font: inherit;
+}
+
 .markdown-table-wrap {
   overflow-x: auto;
   margin: 12px 0 16px;
