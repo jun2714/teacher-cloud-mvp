@@ -1,11 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { lessonApi, reportsApi } from '../api'
 import PageHeader from '../components/PageHeader.vue'
 import MarkdownBlock from '../components/MarkdownBlock.vue'
+import LessonPresentation from '../components/LessonPresentation.vue'
 import { downloadBlob } from '../utils/download'
 import { errorMessage, showAlert, showConfirm } from '../utils/dialog'
+
+const DocumentEditor = defineAsyncComponent(() => import('../components/DocumentEditor.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -123,8 +126,9 @@ async function downloadWord() {
             {{ downloading ? '正在导出…' : '下载 Word' }}
           </button>
         </section>
-        <section class="result-card">
-          <textarea v-if="editing" v-model="draft" class="edit-area" rows="18" />
+        <LessonPresentation v-if="kind === 'lesson' && !editing" :content="content" :title="item.title" :topic="item.topic || ''" />
+        <section v-else class="result-card">
+          <DocumentEditor v-if="editing" v-model="draft" :disabled="saving" />
           <MarkdownBlock v-else :content="content" />
         </section>
         <div class="detail-actions">
@@ -166,17 +170,6 @@ async function downloadWord() {
   margin-top: 4px;
   font-size: 12px;
   color: var(--muted);
-}
-.edit-area {
-  width: 100%;
-  min-height: 360px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  font-size: 14px;
-  line-height: 1.7;
-  resize: vertical;
-  box-sizing: border-box;
 }
 .detail-actions {
   display: flex;

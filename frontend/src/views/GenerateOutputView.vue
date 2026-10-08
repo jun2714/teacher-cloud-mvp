@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { lessonApi, reportsApi } from '../api'
 import PageHeader from '../components/PageHeader.vue'
 import MarkdownBlock from '../components/MarkdownBlock.vue'
+import LessonPresentation from '../components/LessonPresentation.vue'
 import { takeAiJob } from '../utils/aiJob'
 import { postSse } from '../utils/sse'
 import { downloadBlob } from '../utils/download'
@@ -22,6 +23,8 @@ const savedId = ref(null)
 const downloading = ref(false)
 const errorText = ref('')
 const bottomEl = ref(null)
+const presentationEl = ref(null)
+const lessonTopic = ref('')
 const abort = new AbortController()
 
 const pageTitle = () => (isLesson() ? '个人教学设计' : '研修总结报告')
@@ -56,6 +59,7 @@ onMounted(async () => {
   }
   kind.value = job.kind || kind.value
   title.value = job.title || pageTitle()
+  lessonTopic.value = job.payload.topic || ''
   status.value = 'streaming'
   try {
     await postSse(
@@ -76,14 +80,15 @@ onMounted(async () => {
             savedId.value = event.id
             if (event.title) title.value = event.title
             status.value = 'done'
+            if (isLesson()) nextTick(() => presentationEl.value?.scrollIntoView({ block: 'start' }))
             useNoticeStore().refresh()
           }
         },
       },
     )
     if (status.value === 'streaming') {
-      status.value = content.value ? 'done' : 'error'
-      if (!content.value) errorText.value = '未收到生成内容，请重试'
+      status.value = 'error'
+      errorText.value = content.value ? '连接已中断，尚未确认保存完成。请先查看历史记录，或返回重试。' : '未收到生成内容，请重试'
     }
   } catch (e) {
     if (e.name === 'AbortError') return
@@ -103,7 +108,7 @@ onUnmounted(() => abort.abort())
         <div>
           <b>{{ title || pageTitle() }}</b>
           <small v-if="status === 'streaming'">AI 正在撰写，请稍候…</small>
-          <small v-else-if="status === 'done'">已完成，可下载 Word、编辑内容，或稍后在历史中查看</small>
+          <small v-else-if="status === 'done'">{{ isLesson() ? '已生成，可翻页展示、全屏演示或下载 PPT，也可编辑正文' : '已完成，可下载 Word、编辑内容，或稍后在历史中查看' }}</small>
           <small v-else-if="status === 'error'">生成中断，可返回修改后重试</small>
           <small v-else>准备开始</small>
         </div>
@@ -112,7 +117,10 @@ onUnmounted(() => abort.abort())
         <em v-else-if="status === 'error'">失败</em>
       </section>
 
-      <section class="result-card stream-card">
+      <div v-if="isLesson() && status === 'done' && content" ref="presentationEl">
+        <LessonPresentation :content="content" :title="title" :topic="lessonTopic" />
+      </div>
+      <section v-else class="result-card stream-card">
         <p v-if="!content && status === 'streaming'" class="stream-placeholder">正在组织内容…</p>
         <MarkdownBlock v-if="content" :content="content" />
         <span v-if="status === 'streaming'" class="stream-cursor" />

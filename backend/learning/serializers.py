@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from pathlib import Path
+from services.asr import AUDIO_EXT, ASR_MAX_BYTES
+from services.note_materials import NOTE_EXT, MAX_BYTES
 from .models import ResearchNote, ResearchReport, LessonPlan, LessonReview, AssistantChat, AssistantMessage
 
 class ResearchNoteSerializer(serializers.ModelSerializer):
@@ -6,6 +9,27 @@ class ResearchNoteSerializer(serializers.ModelSerializer):
     input_method_label = serializers.CharField(source="get_input_method_display", read_only=True)
     source_file_url = serializers.SerializerMethodField()
     audio_file_url = serializers.SerializerMethodField()
+
+    def validate_source_file(self, value):
+        if value:
+            if Path(value.name).suffix.lower() not in NOTE_EXT:
+                raise serializers.ValidationError("请上传 .docx、PDF、JPG、PNG、WEBP 或文本文件")
+            if value.size > MAX_BYTES:
+                raise serializers.ValidationError("文件不能超过 8MB")
+        return value
+
+    def validate_audio_file(self, value):
+        if value:
+            if Path(value.name).suffix.lower() not in AUDIO_EXT:
+                raise serializers.ValidationError("请上传常见音视频文件")
+            if value.size > ASR_MAX_BYTES:
+                raise serializers.ValidationError("音视频不能超过 80MB")
+        return value
+
+    def validate_tags(self, value):
+        if not isinstance(value, list) or any(not isinstance(tag, str) for tag in value):
+            raise serializers.ValidationError("标签必须是文字列表")
+        return value
 
     class Meta:
         model = ResearchNote
@@ -60,7 +84,7 @@ class LessonReviewSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LessonReview
-        fields = ["id", "title", "subject", "grade", "course_teacher", "media_file", "media_url", "transcript", "report_content", "created_at"]
+        fields = ["id", "title", "subject", "grade", "course_teacher", "media_file", "media_url", "transcript", "material_kind", "report_content", "created_at"]
         read_only_fields = ["report_content", "created_at"]
         extra_kwargs = {"media_file": {"write_only": True, "required": False}}
 

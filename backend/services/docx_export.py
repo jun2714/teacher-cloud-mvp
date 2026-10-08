@@ -155,8 +155,8 @@ def _write_markdown(document: Document, markdown: str) -> None:
             _add_heading(document, line[3:].strip(), level=1)
         elif line.startswith("### "):
             _add_heading(document, line[4:].strip(), level=2)
-        elif line.startswith("> "):
-            _add_quote(document, line[2:].strip())
+        elif line.startswith(">"):
+            _add_quote(document, line[1:].strip())
         elif re.match(r"^[-*] ", line):
             _add_paragraph(document, line[2:].strip(), bullet=True)
         elif line.strip():
@@ -189,8 +189,7 @@ def _add_quote(document: Document, text: str) -> None:
     paragraph = document.add_paragraph()
     paragraph.paragraph_format.left_indent = Mm(4)
     paragraph.paragraph_format.space_after = Pt(8)
-    run = paragraph.add_run(_plain(text))
-    _style_run(run, size=10.5, color=RGBColor(0x6E, 0x77, 0x86))
+    _add_runs_with_bold(paragraph, text, size=10.5, color=RGBColor(0x6E, 0x77, 0x86))
 
 
 def _add_paragraph(document: Document, text: str, bullet: bool = False) -> None:
@@ -202,15 +201,21 @@ def _add_paragraph(document: Document, text: str, bullet: bool = False) -> None:
     _add_runs_with_bold(paragraph, text)
 
 
-def _add_runs_with_bold(paragraph, text: str) -> None:
-    parts = re.split(r"(\*\*.+?\*\*)", text)
-    for part in parts:
-        if part.startswith("**") and part.endswith("**") and len(part) >= 4:
-            run = paragraph.add_run(part[2:-1])
-            _style_run(run, size=12, bold=True)
-        else:
-            run = paragraph.add_run(part)
-            _style_run(run, size=12)
+def _add_runs_with_bold(paragraph, text: str, size: float = 12, force_bold: bool = False, color: RGBColor | None = None) -> None:
+    pieces = text.split("\u2028")
+    for index, piece in enumerate(pieces):
+        if index:
+            paragraph.add_run().add_break()
+        parts = re.split(r"(\*\*[^*]+?\*\*)", piece)
+        for part in parts:
+            if not part:
+                continue
+            if part.startswith("**") and part.endswith("**") and len(part) >= 4:
+                run = paragraph.add_run(part[2:-2])
+                _style_run(run, size=size, bold=True, color=color)
+            else:
+                run = paragraph.add_run(part)
+                _style_run(run, size=size, bold=force_bold, color=color)
 
 
 def _add_table(document: Document, lines: list[str]) -> None:
@@ -231,8 +236,7 @@ def _add_table(document: Document, lines: list[str]) -> None:
             cell.text = ""
             paragraph = cell.paragraphs[0]
             value = row[j] if j < len(row) else ""
-            run = paragraph.add_run(_plain(value))
-            _style_run(run, size=10, bold=(i == 0))
+            _add_runs_with_bold(paragraph, value, size=10, force_bold=(i == 0))
             if i == 0:
                 shading = OxmlElement("w:shd")
                 shading.set(qn("w:fill"), "E8F1FF")

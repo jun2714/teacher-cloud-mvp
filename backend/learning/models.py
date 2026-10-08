@@ -84,6 +84,9 @@ class LessonReview(models.Model):
     course_teacher = models.CharField("授课教师", max_length=80, blank=True, default="")
     media_file = models.FileField("音视频", upload_to="lesson_reviews/%Y/%m/", blank=True, null=True)
     transcript = models.TextField("转写文本", blank=True, default="")
+    material_kind = models.CharField("材料类型", max_length=20, default="classroom", choices=[
+        ("classroom", "课堂实录"), ("lesson_plan", "教案资料"), ("mixed", "教案与课堂实录"),
+    ])
     report_content = models.TextField("评课报告")
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
 

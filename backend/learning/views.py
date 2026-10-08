@@ -22,7 +22,9 @@ from services.ai import AIServiceError, generate_text, generate_text_stream
 from services.asr import AsrError, transcribe_upload
 from services.docx_export import markdown_to_docx
 from services.file_text import extract_upload_excerpt
+from services.review_materials import extract_review_material, MaterialError, VisionError, MAX_CHARS
 from services.notices import push_notice
+from services.note_materials import extract_note_material
 from services.text_clean import strip_required_marks
 
 
@@ -59,47 +61,10 @@ class ResearchNoteViewSet(OwnerQuerysetMixin, viewsets.ModelViewSet):
     queryset = ResearchNote.objects.all()
     serializer_class = ResearchNoteSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
-
-    def perform_create(self, serializer):
-        note = serializer.save(author=self.request.user)
-        self._merge_file_text(note)
-        self._merge_audio_text(note)
-
-    def perform_update(self, serializer):
-        note = serializer.save()
-        if self.request.FILES.get("source_file"):
-            self._merge_file_text(note)
-        if self.request.FILES.get("audio_file"):
-            self._merge_audio_text(note)
-
-    def _merge_audio_text(self, note):
-        if not note.audio_file or (note.content or "").strip():
-            return
-        try:
-            text = transcribe_upload(note.audio_file)
-        except AsrError:
-            return
-        if text:
-            note.content = text
-            note.save(update_fields=["content"])
-
-    def _merge_file_text(self, note):
-        uploaded = note.source_file
-        if not uploaded:
-            return
-        try:
-            filename, excerpt = extract_upload_excerpt(uploaded)
-        except ValueError:
-            return
-        if not excerpt:
-            return
-        note.raw_text = excerpt
-        content = (note.content or "").strip()
-        if not content:
-            note.content = excerpt
-        elif excerpt not in content:
-            note.content = f"{content}\n\n【来自文件：{filename}】\n{excerpt}"
-        note.save(update_fields=["raw_text", "content"])
+    # The notes page has no pagination controls; expose the complete owned list.
+    pagination_class = None
+    # Extraction is explicit, before saving. Never append stale OCR/transcription
+    # to the text the teacher has already reviewed and edited.
 
     @action(detail=False, methods=["post"], url_path="extract")
     def extract(self, request):
@@ -107,10 +72,12 @@ class ResearchNoteViewSet(OwnerQuerysetMixin, viewsets.ModelViewSet):
         if not uploaded:
             return Response({"detail": "请选择文件"}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            filename, excerpt = extract_upload_excerpt(uploaded)
-        except ValueError as exc:
+            result = extract_note_material(uploaded)
+        except MaterialError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        return Response({"filename": filename, "excerpt": excerpt})
+        except VisionError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(result)
 
 class ResearchReportViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
     queryset = ResearchReport.objects.prefetch_related("source_notes")
@@ -246,7 +213,7 @@ class LessonPlanViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOnly
             "complete_date": request.data.get("complete_date", ""),
             "student_context": request.data.get("student_context", ""),
             "requirements": request.data.get("requirements", ""),
-            "program_name": "吴忠中学“组团帮扶”教师跟岗研修项目 · 泉州一中跟岗基地",
+            "program_name": "吴忠中学教师跟岗实践暨“县中帮扶”交流培训",
         }
         try:
             content = generate_text("lesson_plan", payload)
@@ -286,7 +253,7 @@ class LessonPlanViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOnly
             "complete_date": request.data.get("complete_date", ""),
             "student_context": request.data.get("student_context", ""),
             "requirements": request.data.get("requirements", ""),
-            "program_name": "吴忠中学“组团帮扶”教师跟岗研修项目 · 泉州一中跟岗基地",
+            "program_name": "吴忠中学教师跟岗实践暨“县中帮扶”交流培训",
         }
         title = request.data.get("title") or f"跟岗研修个人教学设计 · {request.data['topic']}"
 
@@ -344,9 +311,24 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
             return LessonReviewListSerializer
         return LessonReviewSerializer
 
+    @action(detail=False, methods=["post"], url_path="extract")
+    def extract(self, request):
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            return Response({"detail": "请选择 Word、PDF 或教案图片"}, status=400)
+        try:
+            return Response(extract_review_material(uploaded))
+        except MaterialError as exc:
+            return Response({"detail": str(exc)}, status=400)
+        except VisionError as exc:
+            return Response({"detail": str(exc)}, status=502)
+
     @action(detail=False, methods=["post"])
     def generate(self, request):
         transcript = str(request.data.get("transcript") or "").strip()
+        material_kind = request.data.get("material_kind", "classroom")
+        if material_kind not in {"classroom", "lesson_plan", "mixed"}:
+            return Response({"detail": "请选择有效的材料类型"}, status=400)
         media = request.FILES.get("media_file")
         if not transcript and media:
             try:
@@ -354,7 +336,9 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
             except AsrError as exc:
                 return Response({"detail": f"语音转写失败：{exc}"}, status=status.HTTP_502_BAD_GATEWAY)
         if not transcript:
-            return Response({"detail": "请粘贴转写，或上传课堂录音/视频由系统转写"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "请先录音、识别上传材料，或粘贴教学材料正文"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(transcript) > MAX_CHARS:
+            return Response({"detail": "材料超过 60000 字，请拆分后分析"}, status=400)
         try:
             content = generate_text("lesson_review", {
                 "title": request.data.get("title", "听评课分析"),
@@ -362,6 +346,7 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
                 "grade": request.data.get("grade", ""),
                 "course_teacher": request.data.get("course_teacher", ""),
                 "transcript": transcript,
+                "material_kind": material_kind,
             })
         except AIServiceError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
@@ -372,6 +357,7 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
             grade=request.data.get("grade", ""),
             course_teacher=request.data.get("course_teacher", ""),
             transcript=transcript,
+            material_kind=material_kind,
             media_file=request.FILES.get("media_file"),
             report_content=content,
         )

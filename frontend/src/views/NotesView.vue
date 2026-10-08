@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { notesApi, reportsApi } from '../api'
 import PageHeader from '../components/PageHeader.vue'
+import ReportIcon from '../components/ReportIcon.vue'
 
 const router = useRouter()
 const notes = ref([])
@@ -25,9 +26,9 @@ onMounted(load)
   <main class="sub-page">
     <PageHeader title="教研笔记" />
     <div class="page-body">
-      <div class="intro"><h2>教研笔记</h2><p>记录教研学习中的所思所想所感</p></div>
+      <p class="page-description">记录教研学习中的所思所想所感</p>
       <section class="report-banner">
-        <span class="report-icon">▤</span>
+        <span class="report-icon" aria-hidden="true"><ReportIcon kind="write" /></span>
         <div>
           <b>研修总结报告</b>
           <small>根据笔记生成跟岗研修总结，含收获、反思与返校计划</small>
@@ -46,7 +47,7 @@ onMounted(load)
         tabindex="0"
         @click="router.push(`/reports/${report.id}`)"
       >
-        <span>▤</span>
+        <span class="report-document-icon" aria-hidden="true"><ReportIcon /></span>
         <div>
           <b>{{ report.title }}</b>
           <small>{{ report.source_note_ids?.length || 0 }} 篇笔记 · {{ new Date(report.created_at).toLocaleDateString() }}</small>

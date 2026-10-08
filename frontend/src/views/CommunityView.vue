@@ -53,10 +53,7 @@ watch(
   <main class="sub-page">
     <PageHeader title="疑惑交流" />
     <div class="page-body">
-      <div class="intro">
-        <h2>疑惑交流</h2>
-        <p>新课标、新课改、新高考实践中的疑惑，与同行交流探讨</p>
-      </div>
+      <p class="page-description">新课标、新课改、新高考实践中的疑惑，与同行交流探讨</p>
       <div class="mode-tabs">
         <button type="button" :class="{ active: scope === 'all' }" @click="setScope('all')">全部</button>
         <button type="button" :class="{ active: scope === 'mine' }" @click="setScope('mine')">我的提问</button>

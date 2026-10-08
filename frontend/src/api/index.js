@@ -25,7 +25,7 @@ export const notesApi = {
   detail: (id) => http.get(`/notes/${id}/`).then((res) => res.data),
   create: (payload) => http.post('/notes/', payload, { headers: payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
   update: (id, payload) => http.patch(`/notes/${id}/`, payload, { headers: payload instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {} }),
-  extract: (payload) => http.post('/notes/extract/', payload, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  extract: (payload) => http.post('/notes/extract/', payload, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 240000 }),
   remove: (id) => http.delete(`/notes/${id}/`),
 }
 
@@ -39,6 +39,11 @@ export const reportsApi = {
 }
 
 export const lessonApi = {
+  extractReviewMaterial: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return http.post('/lesson-reviews/extract/', fd, { timeout: 240000 }).then((res) => res.data)
+  },
   list: () => http.get('/lesson-plans/').then(unwrap),
   detail: (id) => http.get(`/lesson-plans/${id}/`).then((res) => res.data),
   generatePlan: (payload) => http.post('/lesson-plans/generate/', payload),

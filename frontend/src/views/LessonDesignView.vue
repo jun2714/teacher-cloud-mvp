@@ -53,7 +53,7 @@ function generate() {
     <div class="page-body">
       <section class="feature-intro orange">
         <h2>跟岗研修个人教学设计</h2>
-        <p>吴忠中学“组团帮扶”教师跟岗研修项目 · 泉州一中跟岗基地。生成稿将按汇报用表格式输出。</p>
+        <p>吴忠中学教师跟岗实践暨“县中帮扶”交流培训。生成后可按 PPT 展示，并下载 PPT 或 Word。</p>
       </section>
       <button type="button" class="history-link" @click="router.push('/lesson-plans')">查看历史设计 ›</button>
       <section class="form-card">

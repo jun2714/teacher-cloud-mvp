@@ -182,7 +182,7 @@ async function submit() {
 
         <p v-if="error" class="form-error">{{ error }}</p>
         <p v-else-if="tip" class="form-tip">{{ tip }}</p>
-        <p v-if="mode === 'password'" class="login-hint">初始密码为 123456。演示账号 teacher / teacher123 仍可登录。</p>
+        <p v-if="mode === 'password'" class="login-hint">注册成功后，初始密码为 123456</p>
         <p v-else class="login-hint">未注册手机号将自动注册（初始密码 123456），已注册则直接登录。</p>
 
         <button class="login-btn" :disabled="loading">

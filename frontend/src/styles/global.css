@@ -613,6 +613,13 @@ a {
   line-height: 1.5;
 }
 
+.page-description {
+  margin: 0 0 16px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .report-banner {
   padding: 14px;
   background: linear-gradient(135deg, #1a6dff, #0d4fd6);
@@ -624,11 +631,12 @@ a {
 }
 
 .report-icon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 12px;
-  background: #fff;
-  color: var(--blue);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  color: #fff;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -719,6 +727,13 @@ a {
   display: grid;
   place-items: center;
   flex-shrink: 0;
+}
+
+.mini-report > .report-document-icon {
+  width: 42px;
+  height: 42px;
+  background: #edf4ff;
+  color: #326ed2;
 }
 
 .mini-report div {

@@ -5,9 +5,15 @@ const props = defineProps({ content: { type: String, default: '' } })
 
 function stripRequiredMarks(text) {
   return String(text || '')
-    .replace(/\*\*([^*\n]+?)\*\*\*/g, '**$1**')
-    .replace(/([\u4e00-\u9fff])\*([：:])/g, '$1$2')
-    .replace(/^(\s*(?:\d+[\.、]\s*)?[\u4e00-\u9fff][\u4e00-\u9fffA-Za-z0-9/]*)\*\s*$/gm, '$1')
+    .replace(/[＊∗﹡]/g, '*')
+    .replace(/\*\*([^*\n]+?)\*\*\s*\*+\s*(?=[：:])/g, '**$1**')
+    .replace(/(^|[^*\n])\*([^*\n]{1,24})\*(?=\s*[：:])/g, '$1$2')
+    .replace(/([\u4e00-\u9fffA-Za-z0-9])\*(?=[：:])/g, '$1')
+    .replace(/^(\s*(?:\d+[.、]\s*)?[\u4e00-\u9fff][\u4e00-\u9fffA-Za-z0-9/（）()]{0,30})\*+\s*$/gm, '$1')
+    .replace(/<br\s*\/?>/gi, '\u2028')
+    .replace(/^[ \t]*(?:\u2028)+[ \t]*$/gm, '')
+    .replace(/^[ \t]*(?:\.{3,}|…{1,}|·{3,}|。{3,})[ \t]*$/gm, '')
+    .replace(/^[ \t]*([-*_])\1{2,}[ \t]*$/gm, '')
 }
 
 function escapeHtml(s) {
@@ -15,9 +21,10 @@ function escapeHtml(s) {
 }
 
 function inline(s) {
-  return s
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+  return escapeHtml(s)
+    .replace(/\u2028/g, '<br>')
+    .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
 }
 
 function splitCells(line) {
@@ -49,7 +56,7 @@ function tableHtml(lines) {
 }
 
 const html = computed(() => {
-  const lines = escapeHtml(stripRequiredMarks(props.content)).split(/\r?\n/)
+  const lines = stripRequiredMarks(props.content).split(/\r?\n/)
   const out = []
   let i = 0
   let listBuf = []
@@ -80,9 +87,9 @@ const html = computed(() => {
     } else if (/^# /.test(line)) {
       flushList()
       out.push(`<h2>${inline(line.slice(2))}</h2>`)
-    } else if (/^> /.test(line)) {
+    } else if (/^>\s*/.test(line)) {
       flushList()
-      out.push(`<blockquote>${inline(line.slice(2))}</blockquote>`)
+      out.push(`<blockquote>${inline(line.replace(/^>\s*/, ''))}</blockquote>`)
     } else if (/^[-*] /.test(line)) {
       listBuf.push(`<li>${inline(line.slice(2))}</li>`)
     } else if (!line.trim()) {
