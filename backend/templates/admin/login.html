@@ -1,0 +1,36 @@
+{% extends "admin/login.html" %}
+{% load static %}
+
+{% block title %}<title>教研云管理平台 · 管理员登录</title>{% endblock %}
+
+{% block css %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'core/login.css' %}?v=1">
+{% endblock %}
+
+{% block header %}
+  <div class="header">
+    <h1>{{ site_header|default:"教研云管理后台" }}</h1>
+    <p class="login-teaching-caption"><i class="fas fa-book-open" aria-hidden="true"></i> 数据赋能教研 · 助力教师成长</p>
+  </div>
+{% endblock %}
+
+{% block form %}
+  <form class="simpleui-form" action="{{ app_path }}" method="post" id="login-form" aria-label="管理员登录">
+    {% csrf_token %}
+    <div class="simpleui-input-inline el-input el-input--prefix">
+      <label class="login-sr-only" for="id_username">用户名</label>
+      <input class="el-input__inner" id="id_username" type="text" name="username" value="{{ form.username.value|default:'' }}" placeholder="用户名" required autofocus autocomplete="username">
+      <span class="el-input__prefix"><i class="el-input__icon fas fa-user" aria-hidden="true"></i></span>
+    </div>
+    <div class="simpleui-input-inline el-input el-input--prefix">
+      <label class="login-sr-only" for="id_password">密码</label>
+      <input class="el-input__inner" id="id_password" type="password" name="password" placeholder="密码" required autocomplete="current-password">
+      <span class="el-input__prefix"><i class="el-input__icon fas fa-lock" aria-hidden="true"></i></span>
+    </div>
+    <div class="simpleui-input-inline login-btn">
+      <button class="el-button el-button--primary" type="submit">登录</button>
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+  </form>
+{% endblock %}

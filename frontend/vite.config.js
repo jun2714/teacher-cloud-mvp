@@ -20,6 +20,10 @@ export default defineConfig({
         target: apiTarget,
         changeOrigin: true,
       },
+      '/static': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
       '/media': {
         target: apiTarget,
         changeOrigin: true,

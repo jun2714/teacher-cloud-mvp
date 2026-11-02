@@ -116,6 +116,74 @@ class MaterialExtractionTests(SimpleTestCase):
         self.assertIn("教案正文", prompt)
 
 
+class PromptLeakTests(SimpleTestCase):
+    """报告里不能出现 JSON、英文字段名，也不能把文档说成录音转写。"""
+
+    INTERNAL = ["transcript", "material_kind", "material_sources", "course_teacher", "student_context",
+                "teacher_name", "school_name", "class_hours", "complete_date", "training_period",
+                "training_base", "report_date", "report_type", "file_excerpt", "JSON", "{\""]
+
+    def assert_no_internal(self, text):
+        for word in self.INTERNAL:
+            self.assertNotIn(word, text)
+
+    def test_prompts_have_no_field_names(self):
+        prompts = [
+            _build_prompt("lesson_review", {"subject": "语文", "grade": "高二", "course_teacher": "张老师",
+                                            "transcript": "诗歌鉴赏试题", "material_kind": "lesson_plan",
+                                            "material_sources": ["document"]}),
+            _build_prompt("lesson_plan", {"teacher_name": "张老师", "school_name": "吴忠中学", "subject": "数学",
+                                          "grade": "高一", "topic": "函数", "student_context": "基础一般",
+                                          "class_hours": 1}),
+            _build_prompt("note_report", {"teacher_name": "张老师", "subject": "英语", "grade": "高一",
+                                          "training_period": "10月", "titles": ["笔记"],
+                                          "notes": [{"title": "笔记", "content": "听课", "tags": "", "subject": "英语", "grade": "高一"}]}),
+            _build_prompt("assistant_chat", {"message": "怎么设计导入", "subject": "物理", "grade": "高二",
+                                             "file_name": "教案.docx", "file_excerpt": "牛顿第一定律", "history": []}),
+        ]
+        for prompt in prompts:
+            body = prompt.split("\n", 1)[1]  # 首行“任务类型”供百炼应用分流
+            body = body.split("【输出要求】")[0]  # 输出要求里本身就写着“不要出现 JSON”
+            self.assert_no_internal(body)
+
+    def test_prompt_pins_subject_and_source(self):
+        prompt = _build_prompt("lesson_review", {"subject": "语文", "grade": "高二", "transcript": "试题",
+                                                 "material_sources": ["document"]})
+        self.assertIn("语文、高二", prompt)
+        self.assertIn("不要引入其他学科", prompt)
+        self.assertIn("本分析依据上传的教学文档生成", prompt)
+        self.assertIn("不要使用“转写”", prompt)
+        media = _build_prompt("lesson_review", {"transcript": "课堂实录", "material_sources": ["media"]})
+        self.assertIn("本分析依据课堂录音转写文本生成", media)
+
+    def test_missing_optional_information_is_not_written_as_none(self):
+        prompt = _build_prompt("lesson_review", {"transcript": "课堂记录", "subject": None, "grade": "  "})
+        self.assertIn("学科：未提供", prompt)
+        self.assertIn("年级：未提供", prompt)
+        self.assertIn("授课教师：未提供", prompt)
+        self.assertNotIn("：None", prompt)
+
+    def test_cleans_reported_outputs(self):
+        from services.ai import finalize_text
+        first = "- **分析依据**：仅基于提供的 JSON `transcript` 字段内容。"
+        second = "提供的 `transcript` 字段包含大量非口语的PPT文本\n> 本分析主要依据转写文本生成，仅作听评课参考。"
+        payload = {"material_sources": ["document"]}
+        cleaned_first = finalize_text("lesson_review", payload, first)
+        cleaned_second = finalize_text("lesson_review", payload, second)
+        self.assertEqual(cleaned_first, "- **分析依据**：仅基于所提供材料。")
+        self.assert_no_internal(cleaned_second)
+        self.assertIn("依据上传的教学文档生成", cleaned_second)
+        self.assertNotIn("转写", cleaned_second)
+        recorded = finalize_text("lesson_review", {"material_sources": ["media"]}, second)
+        self.assertIn("依据转写文本生成", recorded)
+        self.assert_no_internal(recorded)
+
+    def test_ordinary_english_lesson_text_is_kept(self):
+        from services.text_clean import strip_internal_terms
+        text = "学生朗读 The subject of the passage，并完成 grade 7 练习；信息技术课讲解 JSON 格式。"
+        self.assertEqual(strip_internal_terms(text), text)
+
+
 class ReviewApiTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="review-tests")
@@ -136,6 +204,13 @@ class ReviewApiTests(TestCase):
     def test_vision_failure_is_not_success(self, extract):
         response = self.client.post("/api/lesson-reviews/extract/", {"file": SimpleUploadedFile("photo.png", image_bytes())})
         self.assertEqual(response.status_code, 502)
+
+    @patch("learning.views.generate_text", return_value="报告")
+    def test_generation_passes_material_sources(self, generate):
+        response = self.client.post("/api/lesson-reviews/generate/", {"transcript": "【材料：教案.docx】\n正文",
+                                    "material_kind": "lesson_plan", "material_sources": "document,image"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(generate.call_args.args[1]["material_sources"], ["document", "image"])
 
     @patch("learning.views.generate_text", return_value="# 教案分析\n教学目标清晰")
     def test_generation_persists_kind_and_edited_evidence(self, generate):

@@ -1,0 +1,208 @@
+import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
+
+test.beforeEach(async ({ context }) => {
+  const { sessionid } = JSON.parse(readFileSync(new URL('../../../backend/data/dashboard-browser-session.json', import.meta.url), 'utf8'))
+  await context.addCookies([{ name: 'sessionid', value: sessionid, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Lax' }]);
+});
+
+test('original login keeps moving particles, centered form and mobile usability', async ({ page, context }) => {
+  await context.clearCookies();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1672, height: 941 });
+  await page.goto('/admin/login/?next=/admin/teaching/');
+  await expect(page.locator('#particles-js canvas')).toBeVisible();
+  await expect(page.getByRole('heading', { name: '教研云管理后台' })).toBeVisible();
+  await expect(page.getByRole('form', { name: '管理员登录' })).toBeVisible();
+  const x = await page.evaluate(() => window.pJSDom[0].pJS.particles.array[0].x);
+  await expect.poll(() => page.evaluate(() => window.pJSDom[0].pJS.particles.array[0].x)).not.toBe(x);
+  const form = await page.locator('.login-main').boundingBox();
+  expect(Math.abs(form.x + form.width / 2 - 836)).toBeLessThan(2);
+  await page.getByLabel('用户名', { exact: true }).fill('nonexistent-login-check');
+  await page.getByLabel('密码', { exact: true }).fill('incorrect-test-password');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page.locator('.el-alert')).toBeVisible();
+  await expect(page.getByLabel('用户名', { exact: true })).toHaveValue('nonexistent-login-check');
+  await expect(page.locator('input[name="next"]')).toHaveValue('/admin/teaching/');
+  await page.goto('/admin/login/?next=/admin/teaching/');
+  await page.screenshot({ path: '../output/admin-login-original.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: '../output/admin-login-original-mobile.png', fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test('conversation and community details share the modern reading layout', async ({ page }) => {
+  const fixtures = JSON.parse(readFileSync(new URL('../../../backend/data/dashboard-browser-session.json', import.meta.url), 'utf8'));
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1672, height: 1050 });
+  await page.goto(`/admin/learning/assistantchat/${fixtures.chat_id}/change/`);
+  await expect(page.getByRole('heading', { name: '完整对话记录', exact: true })).toBeVisible();
+  await expect(page.locator('.exchange-entry')).toHaveCount(2);
+  await expect(page.locator('.exchange-body table')).toBeVisible();
+  await expect(page.getByRole('link', { name: '课堂互评材料.docx' })).toHaveAttribute('href', /peer-review\.docx$/);
+  await expect(page.locator('textarea')).toHaveCount(0);
+  await expect(page.locator('.sidebar .selected')).toHaveText('智能体对话');
+  await page.screenshot({ path: '../output/admin-chat-modern.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('button', { name: '深色', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('.exchange-body table tbody tr').first()).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(page.locator('.section-switch')).not.toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(page.locator('.section-switch .active')).toHaveCSS('color', 'rgb(223, 237, 255)');
+  await page.screenshot({ path: '../output/admin-chat-modern-dark.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('link', { name: '查看第 1 条教师提问' }).click();
+  await expect(page.getByRole('link', { name: '查看完整对话', exact: true })).toBeVisible();
+  await page.getByRole('link', { name: '编辑记录', exact: true }).click();
+  await expect(page.locator('#id_content')).toBeVisible();
+  await page.goto(`/admin/community/question/${fixtures.question_id}/change/`);
+  await expect(page.getByRole('heading', { name: '问题描述', exact: true })).toBeVisible();
+  await expect(page.locator('.exchange-entry')).toHaveCount(2);
+  await expect(page.locator('.exchange-entry').first()).toContainText('已采纳');
+  await expect(page.locator('.exchange-entry').last()).toContainText('AI 参考回答');
+  await expect(page.locator('.sidebar .selected')).toHaveText('社区问答');
+  await page.getByRole('button', { name: '浅色', exact: true }).click();
+  await page.screenshot({ path: '../output/admin-question-modern.png', fullPage: true, animations: 'disabled' });
+  for (const [model, id] of [['learning/assistantmessage', fixtures.message_id], ['community/answer', fixtures.answer_id]]) {
+    await page.goto(`/admin/${model}/${id}/change/`);
+    await expect(page.locator('.exchange-entry')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: '编辑记录', exact: true })).toBeVisible();
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/admin/community/question/${fixtures.question_id}/change/`);
+  const overflow = await page.locator('#admin-shell-main *').evaluateAll(elements => elements.filter(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.right > innerWidth + 1; }).map(el => ({ tag: el.tagName, cls: String(el.className), width: el.getBoundingClientRect().width })).slice(0, 12));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), JSON.stringify(overflow)).toBe(false);
+  await expect(page.locator('.exchange-body').first()).toContainText('最值得讨论的问题');
+  await page.screenshot({ path: '../output/admin-question-modern-mobile.png', fullPage: true, animations: 'disabled' });
+  await page.goto(`/admin/learning/assistantchat/${fixtures.chat_id}/change/`);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: '../output/admin-chat-modern-mobile.png', fullPage: true, animations: 'disabled' });
+  expect(errors).toEqual([]);
+});
+
+test('real admin dashboard matches desktop layout and renders accessible charts', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.setViewportSize({ width: 1672, height: 941 });
+  await page.goto('/admin/');
+  await expect(page).toHaveURL(/\/admin\/overview\/$/);
+  await expect(page.getByRole('heading', { name: '教学教研数据驾驶舱', exact: true })).toBeVisible();
+  await expect(page.locator('.metric')).toHaveCount(6);
+  await expect(page.locator('#activity-chart .chart-point')).toHaveCount(30);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  const chartSize = await page.locator('#activity-chart').evaluate(svg => ({ box: svg.viewBox.baseVal.width, width: svg.clientWidth }));
+  expect(Math.abs(chartSize.box - chartSize.width)).toBeLessThan(2);
+  const overlaps = await page.locator('.header-actions, .metrics, .charts-grid, .tables-grid, .key-indicators').evaluateAll(elements => elements.filter(e => e.scrollWidth > e.clientWidth + 2).map(e => e.className));
+  expect(overlaps).toEqual([]);
+  const lightTableHeight = await page.locator('.teacher-table').evaluate(table => table.getBoundingClientRect().height);
+  await page.screenshot({ path: '../output/admin-dashboard-desktop.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('button', { name: '深色' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const darkTableHeight = await page.locator('.teacher-table').evaluate(table => table.getBoundingClientRect().height);
+  expect(Math.abs(lightTableHeight - darkTableHeight)).toBeLessThan(2);
+  await page.screenshot({ path: '../output/admin-dashboard-dark.png', fullPage: true, animations: 'disabled' });
+  await page.getByLabel('趋势时间范围').selectOption('7');
+  await expect(page.locator('#activity-chart .chart-point')).toHaveCount(7);
+  const point = page.locator('#activity-chart .chart-point').nth(3);
+  await point.focus();
+  await expect(page.locator('#chart-tooltip')).toBeVisible();
+  await expect(page.locator('#chart-tooltip')).toContainText('活跃教师');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#chart-tooltip')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('date, school, type and ranking filters, CSV export and management links work', async ({ page }) => {
+  await page.setViewportSize({ width: 1672, height: 941 });
+  await page.goto('/admin/overview/');
+  await page.getByLabel('开始日期', { exact: true }).fill('2026-10-01');
+  await page.getByLabel('结束日期', { exact: true }).fill('2026-10-29');
+  await page.getByRole('button', { name: '应用日期筛选' }).click();
+  await expect(page).toHaveURL(/start=2026-10-01/);
+  const options = await page.getByLabel('筛选学校').locator('option').allTextContents();
+  if (options.length > 1) {
+    await page.getByLabel('筛选学校').selectOption({ label: options[1] });
+    await expect(page.getByLabel('筛选学校')).toHaveValue(options[1]);
+  }
+  await page.getByLabel('筛选内容类型').selectOption('notes');
+  await expect(page).toHaveURL(/kind=notes/);
+  const tags = await page.locator('.latest-table .type-tag').allTextContents();
+  expect(tags.every(t => t === '教研笔记')).toBe(true);
+  await page.getByLabel('学科排序').selectOption('teachers');
+  await expect(page).toHaveURL(/ranking=teachers/);
+  const downloading = page.waitForEvent('download');
+  await page.getByRole('link', { name: '导出报告', exact: true }).click();
+  const download = await downloading;
+  expect(await download.failure()).toBeNull();
+  const csv = readFileSync(await download.path(), 'utf8');
+  expect(csv).toContain('教学教研数据驾驶舱,2026-10-01,2026-10-29');
+  expect(csv).toContain('日期,活跃教师数,发布内容数');
+  await page.getByRole('complementary', { name: '后台导航' }).getByRole('link', { name: '听评课记录' }).click();
+  await expect(page).toHaveURL(/\/admin\/learning\/lessonreview\//);
+  await expect(page.locator('#result_list')).toBeVisible();
+  const listWidths = await page.locator('#changelist .results, #result_list').evaluateAll(elements => elements.map(element => element.getBoundingClientRect().width));
+  expect(listWidths).toHaveLength(2);
+  expect(Math.min(...listWidths) / Math.max(...listWidths)).toBeGreaterThan(0.98);
+});
+
+test('empty data, notifications, mobile layout and invalid dates have usable states', async ({ page }) => {
+  await page.goto('/admin/overview/?school=no-such-school');
+  await expect(page.locator('.donut-center strong')).toHaveText('0');
+  await expect(page.getByText('所选范围暂无学科内容')).toBeVisible();
+  await expect(page.getByText('所选范围暂无教师', { exact: true })).toBeVisible();
+  await expect(page.getByText('所选范围暂无教研内容', { exact: true })).toBeVisible();
+  await page.getByLabel(/站内通知，/).click();
+  await expect(page.locator('.notices .dropdown')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.notices .dropdown')).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/admin/overview/');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: '../output/admin-dashboard-mobile.png', fullPage: true, animations: 'disabled' });
+  const invalid = await page.goto('/admin/overview/?start=2026-10-29&end=2026-10-01');
+  expect(invalid.status()).toBe(400);
+  await expect(page.getByRole('alert')).toContainText('开始日期不能晚于结束日期');
+});
+
+test('management pages keep the dashboard shell and return to the cockpit', async ({ page }) => {
+  await page.goto('/admin/?manage=1');
+  await expect(page.getByRole('heading', { name: '系统管理', exact: true })).toBeVisible();
+  await expect(page.locator('.sidebar')).toHaveCount(1);
+  await page.getByRole('complementary', { name: '后台导航' }).getByRole('link', { name: '听评课记录' }).click();
+  await expect(page).toHaveURL(/\/admin\/learning\/lessonreview\//);
+  await expect(page.locator('.sidebar .nav-item.selected')).toHaveText('听评课记录');
+  await page.getByRole('link', { name: '返回数据看板' }).click();
+  await expect(page).toHaveURL(/\/admin\/overview\/$/);
+  await expect(page.locator('.sidebar')).toHaveCount(1);
+});
+
+test('management lists fill a wide screen and preserve their layout between themes', async ({ page }) => {
+  await page.setViewportSize({ width: 2533, height: 1243 });
+  await page.goto('/admin/learning/lessonplan/');
+  await expect(page.locator('#result_list')).toBeVisible();
+  const table = page.locator('#result_list');
+  const light = await table.boundingBox();
+  const results = await page.locator('#changelist .results').boundingBox();
+  expect(light.width / results.width).toBeGreaterThan(0.98);
+  expect(light.width / (2533 - 202)).toBeGreaterThan(0.9);
+  const author = await page.locator('#result_list .column-author_name').boundingBox();
+  expect((author.x - light.x) / light.width).toBeLessThan(0.55);
+  await expect(page.getByRole('link', { name: '刷新列表', exact: true })).toBeVisible();
+  await page.screenshot({ path: '../output/admin-plans-desktop.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('button', { name: '深色' }).click();
+  const dark = await table.boundingBox();
+  expect(Math.abs(light.width - dark.width)).toBeLessThan(2);
+  expect(Math.abs(light.height - dark.height)).toBeLessThan(2);
+  await expect(page.locator('.sidebar .brand')).toHaveCSS('color', 'rgb(244, 248, 255)');
+  await page.screenshot({ path: '../output/admin-plans-dark.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('textbox', { name: '学科', exact: true }).click();
+  await expect(page.locator('.el-select-dropdown:visible')).toBeVisible();
+  await page.getByRole('heading', { name: '教学设计', exact: true }).click();
+  await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
+  for (const width of [1366, 800, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+  }
+});

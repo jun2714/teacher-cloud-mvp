@@ -15,12 +15,12 @@ FONT_NAME = "微软雅黑"
 
 
 def markdown_to_docx(markdown: str, title: str = "") -> io.BytesIO:
-    from services.text_clean import strip_required_marks
+    from services.text_clean import clean_generated_text
 
     document = Document()
     _setup_page(document)
     _add_page_background(document, BG_PATH)
-    _write_markdown(document, strip_required_marks(markdown or ""))
+    _write_markdown(document, clean_generated_text(markdown or ""))
     buf = io.BytesIO()
     document.save(buf)
     buf.seek(0)

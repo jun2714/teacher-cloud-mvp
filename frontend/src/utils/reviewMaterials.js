@@ -15,6 +15,14 @@ export function classifyMaterial(file) {
   throw new Error('支持 .docx、PDF、JPG、PNG、WEBP 和常见音视频；旧版 .doc 请另存为 .docx')
 }
 
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']
+
+// 告诉后端材料的真实来源，报告里才不会把文档说成“录音转写”。
+export function materialSource(file, kind) {
+  if (kind === 'media') return 'media'
+  return IMAGE_EXTENSIONS.includes(file.name.split('.').pop().toLowerCase()) ? 'image' : 'document'
+}
+
 export function appendMaterial(current, filename, text) {
   if (!text?.trim()) throw new Error('未识别到有效内容，请换一个文件或手动输入。')
   const result = [current.trim(), `【材料：${filename}】\n${text.trim()}`].filter(Boolean).join('\n\n')

@@ -1,0 +1,48 @@
+{% extends 'admin/guidance_base.html' %}
+{% block guidance_content %}
+<div class="reading-toolbar"><a class="guidance-link" href="{{ back_url }}">← 返回查看成果与记录</a></div>
+<div class="feedback-editor-layout">
+  <section class="guidance-section">
+    <span class="eyebrow">一次具体、可执行的支持</span>
+    <h2 class="feedback-editor-title">给予 {{ teacher_name }} 的教研指导</h2>
+    <p class="feedback-editor-target">指导对象：{{ target_title }}</p>
+    <form method="post" class="feedback-editor-form">
+      {% csrf_token %}{{ form.non_field_errors }}
+      {% for field in form %}
+      <div>
+        <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="required-label">必填</span>{% else %}<small>选填</small>{% endif %}</label>
+        {{ field }}
+        {% if field.errors %}<div class="guidance-error" role="alert">{{ field.errors }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <p class="evidence-note">{% if can_draft %}草稿仅自己可见。{% endif %}点击“发送指导”后，老师会收到站内通知，可以在“我的指导反馈”填写落实说明。</p>
+      <div class="guidance-actions">
+        {% if can_draft %}<button class="guidance-btn" name="action" value="draft">保存草稿</button>{% endif %}
+        <button class="guidance-btn primary" name="action" value="send">发送指导</button>
+        <a class="guidance-link" href="{{ back_url }}">取消</a>
+      </div>
+    </form>
+  </section>
+  <aside class="reading-aside-card mentor-prompt">
+    <svg class="icon" aria-hidden="true"><use href="#icon-graduate"/></svg><h3>让建议更容易走进课堂</h3>
+    <ol><li>从实际成果中指出一个具体的亮点。</li><li>聚焦一个最值得改进的教学问题。</li><li>写清下一节课可尝试的行动。</li><li>约定跟进时间，听取老师的实践反馈。</li></ol>
+    <p>关注成长过程，避免仅用使用次数判断教学能力。</p>
+  </aside>
+</div>
+<script>
+(() => {
+  const form = document.querySelector('.feedback-editor-form');
+  form.addEventListener('submit', event => {
+    if (form.dataset.submitting) { event.preventDefault(); return; }
+    form.dataset.submitting = 'true';
+    const action = document.createElement('input');
+    action.type = 'hidden';
+    action.name = 'action';
+    action.value = event.submitter?.value === 'send' ? 'send' : 'draft';
+    form.append(action);
+    form.querySelectorAll('button[type="submit"], button[name="action"]').forEach(button => { button.disabled = true; });
+    if (event.submitter) event.submitter.textContent = action.value === 'send' ? '正在发送…' : '正在保存…';
+  });
+})();
+</script>
+{% endblock %}

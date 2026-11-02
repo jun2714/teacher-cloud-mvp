@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+{% load i18n static simpletags %}
+{% get_current_language as LANGUAGE_CODE %}{% get_current_language_bidi as LANGUAGE_BIDI %}
+<html lang="{{ LANGUAGE_CODE|default:'zh-hans' }}" {% if LANGUAGE_BIDI %}dir="rtl" {% endif %}>
+<head>
+  <meta charset="utf-8">
+  <script>
+    try { if (localStorage.getItem('admin-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (error) {}
+  </script>
+  <title>{% block title %}{{ title }} · 教研管理平台{% endblock %}</title>
+  <base target="_top">
+  {% include 'admin/includes/css-part.html' %}
+  <link rel="stylesheet" type="text/css" href="{% static 'admin/css/base.css' %}?_=2.7">
+  <link rel="stylesheet" type="text/css" href="{% static 'admin/simpleui-x/css/base.css' %}?_=2.7">
+  <link rel="stylesheet" type="text/css" href="{% static 'admin/simpleui-x/theme/simpleui.css' %}">
+  {% include 'admin/includes/js-part.html' %}
+  <script type="text/javascript" src="{% static 'admin/simpleui-x/js/language.js' %}?_=2.1.2"></script>
+  <script type="text/javascript" src="{% static 'admin/simpleui-x/locale/en-us.js' %}?_=2.1.2"></script>
+  <script type="text/javascript" src="{% static 'admin/simpleui-x/locale/' %}{% get_language %}.js"></script>
+  <script type="text/javascript" src="{% static 'admin/simpleui-x/js/cookie.js' %}"></script>
+  {% block extrastyle %}{% endblock %}
+  {% if LANGUAGE_BIDI %}
+    <link rel="stylesheet" type="text/css" href="{% block stylesheet_rtl %}{% static 'admin/css/rtl.css' %}{% endblock %}?_=20180905"/>
+  {% endif %}
+  {% block extrahead %}{% endblock %}
+  {% block responsive %}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="{% static 'admin/css/responsive.css' %}?_=20180905"/>
+  {% endblock %}
+  {% block blockbots %}
+    <meta name="robots" content="NONE,NOARCHIVE"/>
+  {% endblock %}
+  <script type="text/javascript" src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
+  <link rel="stylesheet" href="{% static 'core/dashboard.css' %}?v=7">
+  <link rel="stylesheet" href="{% static 'core/admin_shell.css' %}?v=17">
+  <link rel="stylesheet" href="{% static 'core/guidance.css' %}?v=2">
+</head>
+<body class="{% if is_popup %}popup {% else %}admin-shell-body {% endif %}{% block bodyclass %}{% endblock %}"
+      data-admin-utc-offset="{% now ' Z' %}">
+
+{% if not is_popup %}
+  {% include "admin/dashboard_icons.html" %}
+  <a class="skip-link" href="#admin-shell-main">跳转到主内容</a>
+  {% include "admin/includes/shell_sidebar.html" %}
+{% endif %}
+
+<main class="{% if is_popup %}admin-popup-main{% else %}dashboard admin-subpage{% endif %}" id="admin-shell-main">
+  {% if not is_popup %}
+  <header class="dashboard-header admin-subpage-header">
+    <div class="heading">
+      <div class="heading-title-row">
+        <h1>{% block shell_heading %}{% if cl %}{{ cl.opts.verbose_name_plural }}{% elif opts and add %}新增{{ opts.verbose_name }}{% elif opts and original %}{{ opts.verbose_name }}详情{% elif request.path == '/admin/' %}系统管理{% elif title %}{{ title }}{% else %}教研管理{% endif %}{% endblock %}</h1>
+        {% if cl %}<span class="heading-count-badge">共 {{ cl.result_count }} 条记录</span>{% elif opts and original and not modern_reading %}<span class="heading-count-badge" title="{{ original }}">{{ original|truncatechars:28 }}</span>{% endif %}
+      </div>
+      <p>{{ admin_page_subtitle }}</p>
+    </div>
+    <div class="header-actions">
+      {% if admin_active_nav == 'questions' %}
+      <div class="section-switch" role="navigation" aria-label="社区问答切换">
+        {% if perms.community.view_question or perms.community.change_question %}<a class="switch-pill {% if '/community/question' in request.path %}active{% endif %}" href="{% url 'admin:community_question_changelist' %}">教师提问</a>{% endif %}
+        {% if perms.community.view_answer or perms.community.change_answer %}<a class="switch-pill {% if '/community/answer' in request.path %}active{% endif %}" href="{% url 'admin:community_answer_changelist' %}">回答记录</a>{% endif %}
+      </div>
+      {% elif admin_active_nav == 'chats' %}
+      <div class="section-switch" role="navigation" aria-label="智能体对话切换">
+        {% if perms.learning.view_assistantchat or perms.learning.change_assistantchat %}<a class="switch-pill {% if '/learning/assistantchat' in request.path %}active{% endif %}" href="{% url 'admin:learning_assistantchat_changelist' %}">对话会话</a>{% endif %}
+        {% if perms.learning.view_assistantmessage or perms.learning.change_assistantmessage %}<a class="switch-pill {% if '/learning/assistantmessage' in request.path %}active{% endif %}" href="{% url 'admin:learning_assistantmessage_changelist' %}">对话消息</a>{% endif %}
+      </div>
+      {% elif admin_active_nav == 'core' %}
+      <div class="section-switch" role="navigation" aria-label="核心数据切换">
+        <a class="switch-pill {% if '/core/teacherprofile' in request.path %}active{% endif %}" href="{% url 'admin:core_teacherprofile_changelist' %}">教师档案</a>
+        <a class="switch-pill {% if '/core/inappnotice' in request.path %}active{% endif %}" href="{% url 'admin:core_inappnotice_changelist' %}">站内通知</a>
+      </div>
+      {% endif %}
+      <a class="back-dashboard-btn" href="{% url 'teacher_overview' %}"><svg class="icon"><use href="#icon-users"/></svg>返回数据看板</a>
+      {% include "admin/includes/shell_user_menus.html" %}
+    </div>
+  </header>
+  {% endif %}
+
+  <div id="container" class="admin-shell-container">
+    {% block messages %}
+      {% autoescape off %}{% load_message %}{% endautoescape %}
+      <script type="text/javascript">
+        new Vue({
+          created: function () {
+            if (!window.messages) return;
+            var self = this;
+            messages.forEach(function (item) {
+              setTimeout(function () {
+                self.$notify({
+                  title: typeof getLanuage === 'function' ? getLanuage('Tips') : '提示',
+                  message: item.msg,
+                  type: item.tag,
+                  dangerouslyUseHTMLString: true
+                });
+              }, 200);
+            });
+          }
+        });
+      </script>
+    {% endblock %}
+
+    <div id="content" class="{% block coltype %}colM{% endblock %} admin-shell-card">
+      {% block pretitle %}{% endblock %}
+      {% block content_title %}{% endblock %}
+      {% block content %}
+        {% block object-tools %}{% endblock %}
+        {{ content }}
+      {% endblock %}
+      {% block sidebar %}{% endblock %}
+      <br class="clear"/>
+    </div>
+    {% block footer %}<div id="footer"></div>{% endblock %}
+  </div>
+</main>
+<script>
+  (() => {
+    if (window.self !== window.top && window.top.location.origin === window.location.origin && !document.body.classList.contains('popup')) {
+      window.top.location.href = window.location.href;
+      return;
+    }
+    document.addEventListener('click', event => {
+      document.querySelectorAll('.header-menu[open]').forEach(menu => {
+        if (!menu.contains(event.target)) menu.open = false;
+      });
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        document.querySelectorAll('.header-menu[open]').forEach(menu => {
+          menu.open = false;
+          menu.querySelector('summary')?.focus();
+        });
+      }
+    });
+    document.querySelectorAll('#result_list tbody td, #result_list tbody th').forEach(cell => {
+      const text = (cell.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!text) return;
+      const target = cell.querySelector('a') || cell;
+      if (!target.getAttribute('title')) target.setAttribute('title', text);
+    });
+    const toolLabels = {
+      'el-icon-search': '显示或隐藏筛选条件',
+      'el-icon-refresh': '刷新列表',
+      'el-icon-news': '在新窗口打开列表'
+    };
+    document.querySelectorAll('#changelist .btn-group a').forEach(button => {
+      const icon = button.querySelector('span');
+      const label = icon && Object.keys(toolLabels).find(name => icon.classList.contains(name));
+      if (label) {
+        button.setAttribute('aria-label', toolLabels[label]);
+        button.setAttribute('title', toolLabels[label]);
+      }
+    });
+    document.querySelectorAll('#toolbar input[placeholder]').forEach(input => {
+      input.setAttribute('aria-label', input.placeholder);
+    });
+  })();
+</script>
+</body>
+</html>

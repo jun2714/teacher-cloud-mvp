@@ -2,6 +2,12 @@ import http from './http'
 
 const unwrap = (response) => response.data.results ?? response.data
 
+export const guidanceApi = {
+  list: (page = 1) => http.get('/teaching-feedback/', { params: { page } }).then((res) => res.data),
+  detail: (id) => http.get(`/teaching-feedback/${id}/`).then((res) => res.data),
+  complete: (id, teacher_reply) => http.post(`/teaching-feedback/${id}/`, { teacher_reply }).then((res) => res.data),
+}
+
 export const authApi = {
   login: (payload) => http.post('/auth/token/', payload),
   captcha: () => http.get('/auth/captcha/'),

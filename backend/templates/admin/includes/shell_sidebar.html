@@ -1,0 +1,18 @@
+<aside class="sidebar" aria-label="后台导航">
+  <a class="brand" href="{% url 'teacher_overview' %}"><svg class="icon"><use href="#icon-book"/></svg><strong>教研管理平台</strong></a>
+  <nav>
+    <a class="nav-item {% if admin_active_nav == 'overview' %}selected{% endif %}" href="{% url 'teacher_overview' %}" {% if admin_active_nav == 'overview' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-users"/></svg>数据看板</a>
+    <a class="nav-item {% if admin_active_nav == 'reviews' %}selected{% endif %}" href="{% url 'admin:learning_lessonreview_changelist' %}" {% if admin_active_nav == 'reviews' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-headphones"/></svg>听评课记录</a>
+    <a class="nav-item {% if admin_active_nav == 'plans' %}selected{% endif %}" href="{% url 'admin:learning_lessonplan_changelist' %}" {% if admin_active_nav == 'plans' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-teaching"/></svg>教学设计</a>
+    <a class="nav-item {% if admin_active_nav == 'reports' %}selected{% endif %}" href="{% url 'admin:learning_researchreport_changelist' %}" {% if admin_active_nav == 'reports' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-report"/></svg>教研报告</a>
+    <a class="nav-item {% if admin_active_nav == 'notes' %}selected{% endif %}" href="{% url 'admin:learning_researchnote_changelist' %}" {% if admin_active_nav == 'notes' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-notes"/></svg>教研笔记</a>
+    <a class="nav-item {% if admin_active_nav == 'chats' %}selected{% endif %}" href="{% if perms.learning.view_assistantchat or perms.learning.change_assistantchat %}{% url 'admin:learning_assistantchat_changelist' %}{% else %}{% url 'admin:learning_assistantmessage_changelist' %}{% endif %}" {% if admin_active_nav == 'chats' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-chat"/></svg>智能体对话</a>
+    <a class="nav-item {% if admin_active_nav == 'questions' %}selected{% endif %}" href="{% if perms.community.view_question or perms.community.change_question %}{% url 'admin:community_question_changelist' %}{% else %}{% url 'admin:community_answer_changelist' %}{% endif %}" {% if admin_active_nav == 'questions' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-discuss"/></svg>社区问答</a>
+    <div class="nav-separator"></div>
+    <a class="nav-item {% if admin_active_nav == 'guidance' %}selected{% endif %}" href="{% url 'guidance_workbench' %}" {% if admin_active_nav == 'guidance' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-graduate"/></svg>教研指导</a>
+    <a class="nav-item {% if admin_active_nav == 'teachers' %}selected{% endif %}" href="{% url 'admin:core_teacherprofile_changelist' %}" {% if admin_active_nav == 'teachers' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-user"/></svg>教师与课程</a>
+    <a class="nav-item {% if admin_active_nav == 'core' %}selected{% endif %}" href="{% url 'admin:app_list' 'core' %}" {% if admin_active_nav == 'core' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-bars"/></svg>核心数据</a>
+    <a class="nav-item {% if admin_active_nav == 'manage' %}selected{% endif %}" href="{% url 'admin:index' %}?manage=1" {% if admin_active_nav == 'manage' %}aria-current="page"{% endif %}><svg class="icon"><use href="#icon-settings"/></svg>系统管理</a>
+  </nav>
+  <div class="sidebar-motto">数据赋能教研<br><span>让专业看得见</span><i></i></div>
+</aside>

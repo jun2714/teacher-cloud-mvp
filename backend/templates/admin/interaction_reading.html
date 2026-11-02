@@ -1,0 +1,35 @@
+{% extends 'admin/guidance_base.html' %}
+{% block guidance_content %}
+<div class="reading-toolbar">
+  <a class="guidance-link" href="{{ list_url }}">← 返回{{ content_label }}列表</a>
+  <div class="guidance-actions">{% if parent_url %}<a class="guidance-btn" href="{{ parent_url }}">{{ parent_label }}</a>{% endif %}{% if can_edit %}<a class="guidance-btn" href="?_edit=1">编辑记录</a>{% endif %}{% if can_view_teacher %}<a class="guidance-btn primary" href="{% url 'teacher_workspace' profile.pk %}">查看教师成长档案</a>{% endif %}</div>
+</div>
+<header class="reading-hero interaction-hero">
+  <div class="reading-kind"><svg class="icon" aria-hidden="true"><use href="{% if is_chat %}#icon-chat{% else %}#icon-discuss{% endif %}"/></svg>{{ content_label }}{% if status %}<span class="guidance-status">{{ status }}</span>{% endif %}</div>
+  <h2>{{ record_title }}</h2>
+  <div class="reading-author"><span class="feedback-avatar">{{ author_name|first }}</span><strong>{{ author_name }}</strong>{% if profile.school_name %}<span>{{ profile.school_name }}</span>{% endif %}<span>{{ obj.created_at|date:'Y-m-d H:i' }}</span></div>
+  {% if metadata %}<dl class="reading-metadata">{% for label,value in metadata %}{% if value %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endif %}{% endfor %}</dl>{% endif %}
+  {% if tags %}<div class="interaction-tags" aria-label="问题标签">{% for tag in tags %}<span>{{ tag }}</span>{% endfor %}</div>{% endif %}
+</header>
+<div class="document-layout interaction-layout">
+  <div class="reading-main">
+    {% if is_question %}<article class="document-paper" aria-label="问题正文"><h2 class="interaction-section-title">问题描述</h2><div class="reading-document">{{ intro_html }}</div></article>{% endif %}
+    <section class="guidance-section interaction-thread" aria-label="{{ thread_title }}">
+      <div class="guidance-section-heading"><div><h2>{{ thread_title }}</h2>{% if thread_hint %}<p class="guidance-caption">{{ thread_hint }}</p>{% endif %}</div>{% if thread_page %}<span class="guidance-status">共 {{ thread_page.paginator.count }} 条</span>{% endif %}</div>
+      {% for entry in entries %}
+      <article class="exchange-entry {% if entry.ai %}from-assistant{% else %}from-teacher{% endif %}" id="exchange-{{ entry.pk }}" aria-label="{{ entry.label }}">
+        <header class="exchange-header"><span class="exchange-avatar" aria-hidden="true"><svg class="icon"><use href="{% if entry.ai %}#icon-chat{% else %}#icon-user{% endif %}"/></svg></span><div><strong>{{ entry.author }}</strong><span>{{ entry.label }} · {{ entry.when|date:'Y-m-d H:i' }}</span></div>{% if entry.accepted %}<span class="guidance-status done">已采纳</span>{% endif %}{% if is_chat or is_question %}<a class="guidance-link exchange-detail" href="{{ entry.url }}" aria-label="查看第 {{ forloop.counter }} 条{{ entry.label }}">查看详情 →</a>{% endif %}</header>
+        <div class="reading-document exchange-body">{% if entry.html %}{{ entry.html }}{% else %}<p class="guidance-caption">本条记录没有文字内容。</p>{% endif %}</div>
+        {% if entry.attachment %}<a class="guidance-btn exchange-attachment" href="{{ entry.attachment.url }}" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#icon-document"/></svg>{{ entry.attachment_name }}</a>{% endif %}
+      </article>
+      {% empty %}<div class="guidance-empty"><svg class="icon" aria-hidden="true"><use href="#icon-chat"/></svg>{% if can_read_entries %}<strong>{% if is_chat %}暂无对话消息{% else %}暂时没有回答{% endif %}</strong><p>{% if is_chat %}本会话尚未保存消息，后续交流将按时间顺序显示在这里。{% else %}老师或智能助手提交回答后，将在这里展示。{% endif %}</p>{% else %}<strong>当前账号没有内容查看权限</strong><p>查看{% if is_chat %}消息{% else %}回答{% endif %}正文需要对应的管理权限。</p>{% endif %}</div>{% endfor %}
+      {% if thread_page.paginator.num_pages > 1 %}<nav class="exchange-pagination" aria-label="内容分页">{% if thread_page.has_previous %}<a class="guidance-btn" href="?page={{ thread_page.previous_page_number }}">上一页</a>{% endif %}<span>第 {{ thread_page.number }} / {{ thread_page.paginator.num_pages }} 页</span>{% if thread_page.has_next %}<a class="guidance-btn" href="?page={{ thread_page.next_page_number }}">下一页</a>{% endif %}</nav>{% endif %}
+    </section>
+  </div>
+  <aside class="reading-aside" aria-label="交流概览与教研观察">
+    {% if statistics %}<section class="reading-aside-card"><span class="eyebrow">交流概览</span><dl class="exchange-statistics">{% for label,value in statistics %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}</dl></section>{% endif %}
+    {% if parent_url %}<section class="reading-aside-card"><span class="eyebrow">关联记录</span><p class="exchange-parent-title">{{ parent_title }}</p><a class="guidance-link" href="{{ parent_url }}">{{ parent_label }} →</a></section>{% endif %}
+    <section class="reading-aside-card mentor-prompt"><svg class="icon" aria-hidden="true"><use href="#icon-graduate"/></svg><h3>教研观察</h3><p>{{ observation }}</p>{% if can_view_teacher %}<a class="guidance-btn" href="{% url 'teacher_workspace' profile.pk %}">查看使用记录与指导</a>{% endif %}</section>
+  </aside>
+</div>
+{% endblock %}

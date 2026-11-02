@@ -89,6 +89,12 @@ class TeacherProfileAdmin(admin.ModelAdmin):
         return " · ".join(bits)
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
+        if request.method == "GET" and request.GET.get("_edit") != "1" and not request.GET.get("_popup"):
+            obj = self.get_object(request, object_id)
+            from .dashboard import PERMISSIONS
+            if obj and not obj.user.is_staff and request.user.has_perms(PERMISSIONS):
+                from .guidance_views import teacher_workspace
+                return teacher_workspace(request, obj.pk)
         extra_context = extra_context or {}
         obj = self.get_object(request, object_id)
         extra_context["teacher_records"] = self._records(obj) if obj else []

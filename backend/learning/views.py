@@ -18,14 +18,13 @@ from .serializers import (
     AssistantChatSerializer,
     AssistantChatListSerializer,
 )
-from services.ai import AIServiceError, generate_text, generate_text_stream
+from services.ai import AIServiceError, finalize_text, generate_text, generate_text_stream
 from services.asr import AsrError, transcribe_upload
 from services.docx_export import markdown_to_docx
 from services.file_text import extract_upload_excerpt
 from services.review_materials import extract_review_material, MaterialError, VisionError, MAX_CHARS
 from services.notices import push_notice
 from services.note_materials import extract_note_material
-from services.text_clean import strip_required_marks
 
 
 def _sse(data: dict) -> str:
@@ -154,7 +153,7 @@ class ResearchReportViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.Read
                 for delta in generate_text_stream("note_report", payload):
                     chunks.append(delta)
                     yield _sse({"delta": delta})
-                content = strip_required_marks("".join(chunks))
+                content = finalize_text("note_report", payload, "".join(chunks))
                 report = ResearchReport.objects.create(
                     author=user, title=title, report_type=report_type, content=content,
                 )
@@ -264,7 +263,7 @@ class LessonPlanViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOnly
                 for delta in generate_text_stream("lesson_plan", payload):
                     chunks.append(delta)
                     yield _sse({"delta": delta})
-                content = strip_required_marks("".join(chunks))
+                content = finalize_text("lesson_plan", payload, "".join(chunks))
                 plan = LessonPlan.objects.create(
                     author=user,
                     title=title,
@@ -330,11 +329,15 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
         if material_kind not in {"classroom", "lesson_plan", "mixed"}:
             return Response({"detail": "请选择有效的材料类型"}, status=400)
         media = request.FILES.get("media_file")
+        sources = [s.strip() for s in str(request.data.get("material_sources") or "").split(",") if s.strip()]
         if not transcript and media:
             try:
                 transcript = transcribe_upload(media)
             except AsrError as exc:
                 return Response({"detail": f"语音转写失败：{exc}"}, status=status.HTTP_502_BAD_GATEWAY)
+            sources.append("media")
+        elif media and "media" not in sources:
+            sources.append("media")
         if not transcript:
             return Response({"detail": "请先录音、识别上传材料，或粘贴教学材料正文"}, status=status.HTTP_400_BAD_REQUEST)
         if len(transcript) > MAX_CHARS:
@@ -347,6 +350,7 @@ class LessonReviewViewSet(OwnerQuerysetMixin, DestroyModelMixin, viewsets.ReadOn
                 "course_teacher": request.data.get("course_teacher", ""),
                 "transcript": transcript,
                 "material_kind": material_kind,
+                "material_sources": sources,
             })
         except AIServiceError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
@@ -449,7 +453,7 @@ class AssistantChatViewSet(OwnerQuerysetMixin, viewsets.ModelViewSet):
                 for delta in generate_text_stream("assistant_chat", payload):
                     chunks.append(delta)
                     yield _sse({"delta": delta})
-                reply = "".join(chunks).strip() or "暂时没有生成回答，请再试一次。"
+                reply = finalize_text("assistant_chat", payload, "".join(chunks)).strip() or "暂时没有生成回答，请再试一次。"
                 AssistantMessage.objects.create(chat=chat, role="assistant", content=reply)
                 chat.save(update_fields=["updated_at"])
                 yield _sse({"done": True, "chat_id": chat.id, "title": chat.title})

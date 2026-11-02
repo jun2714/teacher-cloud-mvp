@@ -13,6 +13,13 @@ Authorization: Bearer <access_token>
 - `GET /api/me/`：当前教师
 - `GET /api/me/stats/`：个人统计
 
+## 教研指导反馈
+
+- `GET /api/teaching-feedback/?page=1`：当前教师收到的已发送指导，每页 10 条，返回标准分页对象。草稿不可见。
+- `GET /api/teaching-feedback/{id}/`：查看本人收到的指导。包含 `reviewer_name`、`target_title`、`strengths`、`suggestions`、`action_plan`、`follow_up_date`、`status`、`teacher_reply`、`sent_at`、`completed_at`、`source_link`。关联成果已删除或转移到其他教师时，`source_link` 为空。
+- `POST /api/teaching-feedback/{id}/`：提交 `{ "teacher_reply": "本次课堂改进的落实说明" }`，不能为空，最多 5000 字；状态由 `sent` 变为 `done`，通知原指导人。已落实的记录不可重复提交；他人指导或未发送的草稿返回 404。客户端不能修改指导人、建议内容或状态。
+- 领导端使用原后台会话与 CSRF：`/admin/teaching/` 工作台，`/admin/teaching/teachers/{profile_id}/` 教师档案；从各类成果阅读页或教师档案进入指导编辑。保存草稿需指导反馈查看、新增、修改权限，发送新指导需查看、新增权限；编辑已有草稿另校验本人身份和原成果权限。
+
 ## 教研笔记与报告
 
 - `GET /api/notes/`：返回当前用户全部笔记数组，与无分页控件的笔记列表保持一致。

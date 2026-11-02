@@ -1,0 +1,15 @@
+<section id="feedback-history" class="guidance-section" aria-labelledby="feedback-history-title">
+  <div class="guidance-section-heading"><div><span class="eyebrow">指导 · 行动 · 落实</span><h2 id="feedback-history-title">指导记录</h2></div>{% if can_feedback %}<a class="guidance-btn primary" href="{{ feedback_url }}">撰写指导</a>{% endif %}</div>
+  {% for feedback in feedbacks %}
+  <article class="feedback-record" data-feedback-status="{{ feedback.status }}">
+    <header><span class="feedback-avatar">{{ feedback.reviewer_name|first }}</span><div><strong>{{ feedback.reviewer_name }}</strong><small>{{ feedback.sent_at|default:feedback.created_at|date:'Y-m-d H:i' }} · {{ feedback.get_kind_display }}</small></div><span class="guidance-status {{ feedback.status }}">{{ feedback.get_status_display }}</span>{% if feedback.can_edit %}<a class="guidance-link" href="{% url 'teaching_feedback_edit' feedback.pk %}">继续编辑</a>{% endif %}</header>
+    <p class="feedback-target">{{ feedback.target_title }}</p>
+    {% if feedback.strengths %}<div class="feedback-field"><span>值得肯定</span><p>{{ feedback.strengths|linebreaksbr }}</p></div>{% endif %}
+    <div class="feedback-field"><span>改进建议</span><p>{{ feedback.suggestions|linebreaksbr }}</p></div>
+    {% if feedback.action_plan %}<div class="feedback-field"><span>下一步行动</span><p>{{ feedback.action_plan|linebreaksbr }}</p></div>{% endif %}
+    {% if feedback.follow_up_date %}<p class="feedback-date {% if feedback.overdue %}is-overdue{% endif %}">跟进日期 {{ feedback.follow_up_date|date:'Y-m-d' }}{% if feedback.overdue %} · 已到期，建议联系老师了解进展{% endif %}</p>{% endif %}
+    {% if feedback.teacher_reply %}<div class="teacher-response"><span>教师落实说明 · {{ feedback.completed_at|date:'Y-m-d H:i' }}</span><p>{{ feedback.teacher_reply|linebreaksbr }}</p></div>{% endif %}
+  </article>
+  {% empty %}<div class="guidance-empty"><svg class="icon" aria-hidden="true"><use href="#icon-discuss"/></svg><strong>让具体的建议成为成长的起点</strong><p>暂无可查看的指导记录。阅读成果后，可结合教学实际给予建议。</p></div>{% endfor %}
+  {% if feedbacks|length == 30 %}<p class="guidance-caption">展示最近 30 条指导记录。</p>{% endif %}
+</section>

@@ -1,0 +1,59 @@
+<button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" title="切换深色界面">
+  <svg class="icon theme-icon-moon" aria-hidden="true"><use href="#icon-moon"/></svg>
+  <svg class="icon theme-icon-sun" aria-hidden="true"><use href="#icon-sun"/></svg>
+  <span class="theme-toggle-label">深色</span>
+</button>
+<script>
+(() => {
+  const button = document.getElementById('theme-toggle');
+  if (!button) return;
+  const label = button.querySelector('.theme-toggle-label');
+  const paint = (dark) => {
+    document.documentElement.toggleAttribute('data-theme', dark);
+    if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    button.title = dark ? '切换浅色界面' : '切换深色界面';
+    if (label) label.textContent = dark ? '浅色' : '深色';
+    document.dispatchEvent(new Event('admin-theme-change'));
+  };
+  button.addEventListener('click', () => {
+    const dark = document.documentElement.getAttribute('data-theme') !== 'dark';
+    try { localStorage.setItem('admin-theme', dark ? 'dark' : 'light'); } catch (error) {}
+    paint(dark);
+  });
+  paint(document.documentElement.getAttribute('data-theme') === 'dark');
+})();
+</script>
+<details class="header-menu notices">
+  <summary aria-label="站内通知，{{ unread_count|default:0 }} 条未读">
+    <svg class="icon"><use href="#icon-bell"/></svg>
+    {% if unread_count %}<b class="notice-count">{{ unread_count }}</b>{% endif %}
+  </summary>
+  <div class="dropdown">
+    <h3>站内通知</h3>
+    {% for notice in notices %}
+      <div class="notice-item">
+        <strong>{{ notice.title }}</strong>
+        <p>{{ notice.body }}</p>
+        <small>{{ notice.created_at|date:'m-d H:i' }}</small>
+        {% if notice.link|slice:':7' == '/admin/' %}<a class="guidance-link" href="{{ notice.link }}">查看相关记录 →</a>{% endif %}
+      </div>
+    {% empty %}
+      <p class="empty-notice">暂无通知</p>
+    {% endfor %}
+  </div>
+</details>
+<details class="header-menu account">
+  <summary>
+    <span class="avatar"><svg class="icon"><use href="#icon-user"/></svg></span>
+    <span>{{ request.user.first_name|default:request.user.username }}</span>
+    <svg class="chevron"><use href="#icon-chevron"/></svg>
+  </summary>
+  <div class="dropdown">
+    <a href="{% url 'teacher_overview' %}">数据看板</a>
+    <a href="{% url 'admin:password_change' %}">修改密码</a>
+    <a href="{% url 'admin:index' %}?manage=1">系统管理</a>
+    <form action="{% url 'admin:logout' %}" method="post">{% csrf_token %}<button type="submit">退出登录</button></form>
+  </div>
+</details>

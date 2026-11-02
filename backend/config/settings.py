@@ -52,6 +52,7 @@ TEMPLATES = [{
         "django.template.context_processors.request",
         "django.contrib.auth.context_processors.auth",
         "django.contrib.messages.context_processors.messages",
+        "core.admin_views.admin_shell_context",
     ]},
 }]
 WSGI_APPLICATION = "config.wsgi.application"
@@ -130,7 +131,7 @@ SIMPLEUI_CONFIG = {
             "name": "教师与课程",
             "icon": "fas fa-chalkboard-teacher",
             "models": [
-                {"name": "数据总览", "url": "/admin/overview/", "icon": "fas fa-chart-pie"},
+                {"name": "数据驾驶舱", "url": "/admin/overview/", "icon": "fas fa-chart-pie"},
                 {"name": "教师一览", "url": "core/teacherprofile/", "icon": "fas fa-user-tie"},
             ],
         }

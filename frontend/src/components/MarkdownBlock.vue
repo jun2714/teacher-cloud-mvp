@@ -16,6 +16,31 @@ function stripRequiredMarks(text) {
     .replace(/^[ \t]*([-*_])\1{2,}[ \t]*$/gm, '')
 }
 
+// 与后端 services/text_clean.py 的 INTERNAL_FIELD_LABELS 保持一致。
+const FIELD_LABELS = {
+  transcript: '材料正文', material_kind: '材料类型', material_sources: '材料来源', course_teacher: '授课教师',
+  student_context: '学情说明', teacher_name: '教师姓名', school_name: '所在单位', class_hours: '课时安排',
+  complete_date: '完成日期', training_period: '跟岗时间', training_base: '跟岗基地', report_date: '报告日期',
+  report_type: '报告类型', report_title: '报告标题', file_excerpt: '文件内容', file_name: '文件名',
+  program_name: '项目名称', payload: '所提供材料',
+}
+const FIELD_KEYS = Object.keys(FIELD_LABELS).sort((a, b) => b.length - a.length).join('|')
+const JSON_FIELD_PHRASE = new RegExp(
+  '(?:所?提供的|输入的?|原始的?)?\\s*JSON\\s*(?:数据|资料|格式|对象|文件)?\\s*(?:中的?|里的?|的)?\\s*`?(?:' + FIELD_KEYS + ')`?\\s*字段(?:的)?(?:内容|文本|数据)?(?:中|里)?', 'g')
+const JSON_ONLY_PHRASE = /(?:所?提供的|输入的?|原始的?|以下|上述)\s*JSON\s*(?:数据|资料|格式|对象|内容)?(?:中|里)?/g
+const BACKTICK_FIELD = new RegExp('`(' + FIELD_KEYS + ')`\\s*(?:字段)?', 'g')
+const BARE_FIELD = new RegExp('(?<![A-Za-z_])(' + FIELD_KEYS + ')(?![A-Za-z_])\\s*字段', 'g')
+
+function stripInternalTerms(text) {
+  return text
+    .replace(JSON_FIELD_PHRASE, '所提供材料')
+    .replace(JSON_ONLY_PHRASE, '所提供材料')
+    .replace(BACKTICK_FIELD, (_, key) => FIELD_LABELS[key])
+    .replace(BARE_FIELD, (_, key) => FIELD_LABELS[key])
+    .replaceAll('所提供的所提供材料', '所提供材料')
+    .replaceAll('提供的所提供材料', '所提供材料')
+}
+
 function escapeHtml(s) {
   return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
@@ -58,7 +83,7 @@ function tableHtml(lines) {
 
 const html = computed(() => {
   // Parse fences before cleaning prose so board diagrams retain their symbols and spacing.
-  const lines = props.content.split(/\r?\n/)
+  const lines = stripInternalTerms(props.content || '').split(/\r?\n/)
   const out = []
   let i = 0
   let listBuf = []

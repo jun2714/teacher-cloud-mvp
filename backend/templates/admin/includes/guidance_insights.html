@@ -1,0 +1,8 @@
+<section class="guidance-insights" aria-label="教研指导与跟进">
+  <div class="insights-intro"><span class="eyebrow">从记录到行动</span><h2>让每一次教研都有回应</h2><p>查看成果，给予建议，持续跟进。</p></div>
+  {% if guidance.can_view %}
+  <a class="insight-card" href="{% url 'guidance_workbench' %}?{{ guidance.query }}&state=pending"><span>本期成果待指导</span><strong>{{ guidance.pending }}<small>份</small></strong><p>尚无已发送指导的教研成果 <b aria-hidden="true">↗</b></p></a>
+  <a class="insight-card amber" href="{% url 'guidance_workbench' %}?{{ guidance.query }}&state=followups"><span>指导待落实</span><strong>{{ guidance.followups }}<small>条</small></strong><p>查看教师落实说明并及时跟进 <b aria-hidden="true">↗</b></p></a>
+  {% endif %}
+  <a class="insight-card" href="{% url 'guidance_workbench' %}?{{ guidance.query }}&state=inactive"><span>本期尚无教研记录</span><strong>{{ guidance.inactive }}<small>人</small></strong><p>了解需求，提供使用与教研支持 <b aria-hidden="true">↗</b></p></a>
+</section>

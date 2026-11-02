@@ -1,0 +1,132 @@
+{% extends "admin/base_site.html" %}
+{% load i18n log %}
+
+{% block bodyclass %}{{ block.super }} dashboard-manage{% endblock %}
+
+{% block content %}
+<div class="manage-hub">
+  <div class="manage-quick-bar">
+    <a class="manage-quick-card primary" href="{% url 'teacher_overview' %}">
+      <span class="mq-icon"><svg><use href="#icon-users"/></svg></span>
+      <div>
+        <strong>数据驾驶舱</strong>
+        <p>查看全校教研指标、活跃趋势与学科排行</p>
+      </div>
+      <span class="mq-arrow">进入 ›</span>
+    </a>
+    <a class="manage-quick-card" href="{% url 'admin:core_teacherprofile_changelist' %}">
+      <span class="mq-icon"><svg><use href="#icon-user"/></svg></span>
+      <div>
+        <strong>教师与课程档案</strong>
+        <p>共 {{ shell_counts.teachers|default:0 }} 位教师 · 维护学校、教研组与任教信息</p>
+      </div>
+      <span class="mq-arrow">管理 ›</span>
+    </a>
+    <a class="manage-quick-card" href="{% url 'admin:auth_user_changelist' %}">
+      <span class="mq-icon"><svg><use href="#icon-shield"/></svg></span>
+      <div>
+        <strong>账号与权限设置</strong>
+        <p>共 {{ shell_counts.users|default:0 }} 个系统账号 · 管理登录密码与后台权限</p>
+      </div>
+      <span class="mq-arrow">管理 ›</span>
+    </a>
+  </div>
+
+  <div class="manage-grid">
+    <div class="manage-apps">
+      {% for app in app_list %}
+      {% if app.app_label == 'token_blacklist' %}{% else %}
+      <section class="panel manage-app-panel">
+        <div class="panel-heading">
+          <h2 class="accent-title">{{ app.name }}</h2>
+          <span class="app-model-count">{{ app.models|length }} 个数据模块</span>
+        </div>
+        <div class="model-cards-grid">
+          {% for model in app.models %}
+          <article class="model-card">
+            <div class="model-card-main">
+              <span class="model-card-icon">
+                {% if model.object_name == 'LessonReview' %}<svg><use href="#icon-headphones"/></svg>
+                {% elif model.object_name == 'LessonPlan' %}<svg><use href="#icon-teaching"/></svg>
+                {% elif model.object_name == 'ResearchReport' %}<svg><use href="#icon-report"/></svg>
+                {% elif model.object_name == 'ResearchNote' %}<svg><use href="#icon-notes"/></svg>
+                {% elif model.object_name == 'AssistantChat' or model.object_name == 'AssistantMessage' %}<svg><use href="#icon-chat"/></svg>
+                {% elif model.object_name == 'Question' or model.object_name == 'Answer' %}<svg><use href="#icon-discuss"/></svg>
+                {% elif model.object_name == 'TeacherProfile' %}<svg><use href="#icon-user"/></svg>
+                {% elif model.object_name == 'InAppNotice' %}<svg><use href="#icon-bell"/></svg>
+                {% else %}<svg><use href="#icon-settings"/></svg>{% endif %}
+              </span>
+              <div class="model-card-info">
+                {% if model.admin_url %}
+                  <a class="model-card-title" href="{{ model.admin_url }}">{{ model.name }}</a>
+                {% else %}
+                  <span class="model-card-title">{{ model.name }}</span>
+                {% endif %}
+                <span class="model-card-sub">
+                  {% if model.object_name == 'TeacherProfile' %}教师档案 {{ shell_counts.teachers|default:0 }} 份
+                  {% elif model.object_name == 'InAppNotice' %}通知消息 {{ shell_counts.notices|default:0 }} 条
+                  {% elif model.object_name == 'LessonReview' %}听评课 {{ shell_counts.reviews|default:0 }} 份
+                  {% elif model.object_name == 'LessonPlan' %}教学设计 {{ shell_counts.plans|default:0 }} 份
+                  {% elif model.object_name == 'ResearchReport' %}教研报告 {{ shell_counts.reports|default:0 }} 份
+                  {% elif model.object_name == 'ResearchNote' %}教研笔记 {{ shell_counts.notes|default:0 }} 篇
+                  {% elif model.object_name == 'AssistantChat' %}对话会话 {{ shell_counts.chats|default:0 }} 个
+                  {% elif model.object_name == 'AssistantMessage' %}对话消息 {{ shell_counts.messages|default:0 }} 条
+                  {% elif model.object_name == 'Question' %}社区提问 {{ shell_counts.questions|default:0 }} 条
+                  {% elif model.object_name == 'Answer' %}回答记录 {{ shell_counts.answers|default:0 }} 条
+                  {% elif model.object_name == 'User' %}登录账号 {{ shell_counts.users|default:0 }} 个
+                  {% elif model.object_name == 'Group' %}权限分组 {{ shell_counts.groups|default:0 }} 个
+                  {% else %}点击进入查看与维护{% endif %}
+                </span>
+              </div>
+            </div>
+            <div class="model-card-actions">
+              {% if model.admin_url %}
+                <a class="mc-btn view" href="{{ model.admin_url }}">查看列表</a>
+              {% endif %}
+              {% if model.add_url %}
+                <a class="mc-btn add" href="{{ model.add_url }}">+ 新增</a>
+              {% endif %}
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+      {% empty %}
+      <section class="panel"><div class="empty"><p>当前账号暂无可管理的数据模块</p></div></section>
+      {% endfor %}
+    </div>
+
+    <aside class="panel manage-log-panel">
+      <div class="panel-heading">
+        <h2 class="accent-title">最近管理操作</h2>
+      </div>
+      {% get_admin_log 10 as admin_log for_user user %}
+      {% if admin_log %}
+      <ul class="manage-log-list">
+        {% for entry in admin_log %}
+        <li>
+          <span class="log-badge {% if entry.is_addition %}add{% elif entry.is_change %}change{% elif entry.is_deletion %}del{% endif %}">
+            {% if entry.is_addition %}新增{% elif entry.is_change %}修改{% elif entry.is_deletion %}删除{% else %}操作{% endif %}
+          </span>
+          <div class="log-body">
+            {% if entry.is_deletion or not entry.get_admin_url %}
+              <strong>{{ entry.object_repr }}</strong>
+            {% else %}
+              <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+            {% endif %}
+            <small>{% if entry.content_type %}{{ entry.content_type.name }} · {% endif %}{{ entry.action_time|date:"m-d H:i" }}</small>
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty">
+        <svg class="icon"><use href="#icon-bars"/></svg>
+        <p>暂无最近后台操作记录</p>
+      </div>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

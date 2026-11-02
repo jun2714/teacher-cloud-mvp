@@ -8,7 +8,7 @@ import SuggestInput from '../components/SuggestInput.vue'
 import { GRADES, SUBJECTS } from '../constants/options'
 import { loadTeacherProfile } from '../composables/useTeacherProfile'
 import { errorMessage, showAlert, showConfirm } from '../utils/dialog'
-import { appendMaterial, classifyMaterial, MAX_MATERIAL_CHARS } from '../utils/reviewMaterials'
+import { appendMaterial, classifyMaterial, materialSource, MAX_MATERIAL_CHARS } from '../utils/reviewMaterials'
 import { useNoticeStore } from '../stores/notices'
 
 const router = useRouter()
@@ -16,6 +16,7 @@ const loading = ref(false)
 const processing = ref(false)
 const recording = ref(false)
 const materials = ref([])
+const usedSources = ref(new Set())
 const input = ref(null)
 const form = ref({ title: '教学材料与听评课分析', subject: '', grade: '', course_teacher: '', transcript: '', material_kind: 'classroom' })
 const busy = computed(() => loading.value || processing.value || recording.value)
@@ -40,6 +41,7 @@ async function processMaterial(item) {
     item.result = data
     const hadContent = Boolean(form.value.transcript.trim())
     form.value.transcript = appendMaterial(form.value.transcript, item.file.name, data.text)
+    usedSources.value.add(materialSource(item.file, item.kind))
     const nextKind = item.kind === 'media' ? 'classroom' : 'lesson_plan'
     form.value.material_kind = hadContent && form.value.material_kind !== nextKind ? 'mixed' : nextKind
     item.warnings = data.warnings || []
@@ -100,6 +102,11 @@ async function generate() {
   try {
     const payload = new FormData()
     Object.entries(form.value).forEach(([key, value]) => payload.append(key, value))
+    const sources = [...usedSources.value]
+    // 识别出的正文之外还有手动粘贴的内容时，同时标记为文字材料。
+    const recognizedOnly = materials.value.length && form.value.transcript.trim().startsWith('【材料：')
+    if (!sources.length || !recognizedOnly) sources.push('text')
+    payload.append('material_sources', sources.join(','))
     const lastMedia = materials.value.filter((item) => item.kind === 'media' && item.status === 'done').at(-1)
     if (lastMedia) payload.append('media_file', lastMedia.file)
     const result = (await lessonApi.generateReview(payload)).data

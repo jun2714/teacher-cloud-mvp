@@ -22,3 +22,8 @@ frontend/.env.local
 .cursor/
 .DS_Store
 Thumbs.db
+
+# Local regression screenshots (source code and teacher guide outputs remain versioned)
+output/admin-*.png
+output/teacher-guidance-*.png
+output/tengwang-*.png

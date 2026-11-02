@@ -1,8 +1,11 @@
 from django.urls import path
 from .views import asr_transcribe, change_password, me, my_stats, notice_list, notice_mark_read, notice_unread
 from .auth_views import captcha, logout, register, send_sms_code, sms_login
+from .feedback_api import MyFeedbackList, my_feedback_detail
 
 urlpatterns = [
+    path("teaching-feedback/", MyFeedbackList.as_view()),
+    path("teaching-feedback/<int:feedback_id>/", my_feedback_detail),
     path("auth/captcha/", captcha),
     path("auth/sms-code/", send_sms_code),
     path("auth/sms-login/", sms_login),

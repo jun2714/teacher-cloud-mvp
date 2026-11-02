@@ -32,6 +32,7 @@ const accountMenus = [
 ]
 
 const menus = [
+  { to: '/guidance', label: '我的指导反馈', icon: 'qa' },
   { to: '/notes', label: '我的笔记', icon: 'notes' },
   { to: '/community?scope=mine', label: '我的问题与回答', icon: 'qa' },
   { to: '/lesson-plans', label: '我的教学设计', icon: 'design' },

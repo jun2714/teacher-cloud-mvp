@@ -1,0 +1,47 @@
+/* Keep SimpleUI's original centered login, logo and particle background. */
+.login-main {
+  width: calc(100% - 40px);
+}
+
+.header h1 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.login-teaching-caption {
+  margin: 12px 0 0;
+  color: #73869b;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  line-height: 1.6;
+}
+
+.login-teaching-caption i {
+  margin-right: 4px;
+  color: #409eff;
+}
+
+.login-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.simpleui-form .el-input__inner:focus-visible,
+.login-btn button:focus-visible {
+  outline: 2px solid #409eff;
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px), (max-height: 700px) {
+  .login-main {
+    padding-top: 64px;
+  }
+}
