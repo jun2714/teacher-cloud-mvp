@@ -10,9 +10,13 @@ from .guidance import display_name
 
 def replace_default_name(value, row):
     """Replace only this author's verified auto-generated identity in exports."""
-    for alias in {row.get('account', ''), row.get('account_name', '')}:
+    aliases = {row.get('account', ''), row.get('account_name', '')}
+    if re.fullmatch(r'\d{4}', row.get('phone_tail', '')):
+        aliases.add(row['phone_tail'] + '_用户')
+    for alias in aliases:
         if re.fullmatch(r'\d{4}_用户', alias):
-            value = re.sub(r'(?<![0-9A-Za-z_])' + re.escape(alias) + r'(?![0-9A-Za-z_])',
+            # Historical Markdown may escape its underscore: 1234\_用户.
+            value = re.sub(r'(?<![0-9A-Za-z_])' + re.escape(alias[:4]) + r'\\*_用户(?![0-9A-Za-z_])',
                            lambda _: row['name'], value or '')
     return value
 
