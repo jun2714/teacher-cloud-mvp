@@ -1,9 +1,10 @@
 """Readable content pages keep Django's existing edit and permission checks."""
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
+from .archive_exports import ExportActionsMixin
 
 
-class ReadingAdminMixin:
+class ReadingAdminMixin(ExportActionsMixin):
     reading_kind = None
 
     def change_view(self, request, object_id, form_url="", extra_context=None):

@@ -20,6 +20,7 @@ from .models import InAppNotice, TeacherProfile
 
 
 PAGE_DESCRIPTIONS = {
+    "archives": "整理研修过程与成果 · 生成批次及个人报告 · 支持预览和批量导出",
     "guidance": "从教研记录发现支持需求 · 阅读教学成果 · 给予具体指导并跟进落实",
     "overview": "数据驱动教研发展 · 精准洞察教师成长 · 提升学校教学质量",
     "reviews": "汇总全校听评课观察与 AI 诊断报告 · 支撑课堂教学持续改进",
@@ -35,6 +36,8 @@ PAGE_DESCRIPTIONS = {
 
 
 def resolve_admin_nav(path: str) -> str:
+    if path.startswith("/admin/archives/"):
+        return "archives"
     if path.startswith("/admin/teaching/"):
         return "guidance"
     if path.startswith("/admin/overview"):

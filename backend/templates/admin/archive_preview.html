@@ -1,0 +1,17 @@
+{% extends 'admin/guidance_base.html' %}
+{% block guidance_content %}
+<section class="guidance-section"><h2>{{ batch_name }}</h2><p class="evidence-note">共 {{ reports|length }} 份报告。请核对名单、时间、原文节选和建议；下载的 Word 可继续修改。未提供的考勤、测评及效果数据不会自动补成结论。</p>
+<form method="post" id="archive-preview-form">{% csrf_token %}{% for name,value in conditions %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}<div class="guidance-actions"><button type="submit" name="action" value="download" class="guidance-btn primary">导出全部所选资料</button><button type="submit" name="action" value="adjust" class="guidance-btn">返回调整条件</button></div><p class="guidance-caption" id="preview-status" role="status">预览与导出采用相同的生成规则。导出时重新读取当前范围资料。</p></form></section>
+<nav class="archive-report-index" aria-label="报告目录">{% for report in reports %}<a class="guidance-btn" href="#report-{{ forloop.counter }}">{{ report.title }}{% if report.key|slice:':3' == 'D1:' %} · {{ report.key|slice:'3:' }}{% endif %}</a>{% endfor %}</nav>
+{% for report in reports %}<details class="guidance-section archive-report" id="report-{{ forloop.counter }}" {% if forloop.first %}open{% endif %}><summary>{{ report.title }}{% if report.key|slice:':3' == 'D1:' %} · 教师编号 {{ report.key|slice:'3:' }}{% endif %}</summary><div class="reading-toolbar"><span class="guidance-caption">内容核对稿</span><button type="submit" form="archive-preview-form" name="report_key" value="{{ report.key }}" class="guidance-btn">下载此报告 Word</button></div><article class="reading-document">{{ report.html }}</article></details>{% endfor %}
+<script>
+(() => {
+  document.querySelectorAll('.archive-report-index a').forEach(link => link.addEventListener('click', () => {
+    document.getElementById(link.hash.slice(1)).open = true;
+  }));
+  document.querySelector('#archive-preview-form').addEventListener('submit', event => {
+    document.querySelector('#preview-status').textContent = event.submitter?.value === 'adjust' ? '正在返回导出条件…' : '正在准备下载，请勿重复点击。完成后请查看浏览器下载列表。';
+  });
+})();
+</script>
+{% endblock %}

@@ -7,6 +7,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Mm, Pt, RGBColor, Emu
+from markdown_it import MarkdownIt
 
 BG_PATH = Path(__file__).resolve().parent.parent / "assets" / "wordbg.png"
 TITLE_COLOR = RGBColor(0x1A, 0x5F, 0xB4)
@@ -14,13 +15,29 @@ BODY_COLOR = RGBColor(0x2A, 0x31, 0x40)
 FONT_NAME = "微软雅黑"
 
 
-def markdown_to_docx(markdown: str, title: str = "") -> io.BytesIO:
+def markdown_to_docx(markdown: str, title: str = "", *, background: bool = True) -> io.BytesIO:
     from services.text_clean import clean_generated_text
 
     document = Document()
     _setup_page(document)
-    _add_page_background(document, BG_PATH)
-    _write_markdown(document, clean_generated_text(markdown or ""))
+    if background:
+        _add_page_background(document, BG_PATH)
+    # Clean prose independently; literal board diagrams and code keep their symbols.
+    lines, prose, fence = [], [], None
+    for line in (markdown or "").splitlines(keepends=True):
+        match = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if fence:
+            lines.append(line)
+            if re.match(r"^ {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}\s*$", line):
+                fence = None
+        elif match:
+            lines.append(clean_generated_text(''.join(prose)))
+            prose, fence = [], match.group(1)
+            lines.append(line)
+        else:
+            prose.append(line)
+    lines.append(clean_generated_text(''.join(prose)))
+    _write_markdown(document, ''.join(lines))
     buf = io.BytesIO()
     document.save(buf)
     buf.seek(0)
@@ -142,6 +159,19 @@ def _write_markdown(document: Document, markdown: str) -> None:
     i = 0
     while i < len(lines):
         line = lines[i]
+        fence = re.match(r"^ {0,3}(`{3,}|~{3,})", line)
+        if fence:
+            marker = fence.group(1)
+            closing = re.compile(r"^ {0,3}" + re.escape(marker[0]) + "{" + str(len(marker)) + r",}\s*$")
+            i += 1
+            while i < len(lines) and not closing.match(lines[i]):
+                paragraph = document.add_paragraph()
+                paragraph.paragraph_format.space_after = Pt(2)
+                paragraph.paragraph_format.line_spacing = 1.15
+                _style_run(paragraph.add_run(lines[i]), size=10.5)
+                i += 1
+            i += 1
+            continue
         if line.strip().startswith("|"):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith("|"):
@@ -166,6 +196,8 @@ def _write_markdown(document: Document, markdown: str) -> None:
 
 def _add_heading(document: Document, text: str, level: int) -> None:
     paragraph = document.add_paragraph()
+    paragraph.paragraph_format.keep_with_next = True
+    paragraph.paragraph_format.keep_together = True
     if level == 0:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         paragraph.paragraph_format.space_before = Pt(6)
@@ -206,16 +238,23 @@ def _add_runs_with_bold(paragraph, text: str, size: float = 12, force_bold: bool
     for index, piece in enumerate(pieces):
         if index:
             paragraph.add_run().add_break()
-        parts = re.split(r"(\*\*[^*]+?\*\*)", piece)
-        for part in parts:
-            if not part:
-                continue
-            if part.startswith("**") and part.endswith("**") and len(part) >= 4:
-                run = paragraph.add_run(part[2:-2])
-                _style_run(run, size=size, bold=True, color=color)
-            else:
-                run = paragraph.add_run(part)
-                _style_run(run, size=size, bold=force_bold, color=color)
+        tokens = MarkdownIt('js-default').parseInline(piece)[0].children or []
+        bold, italic = 0, 0
+        for token in tokens:
+            if token.type == 'strong_open':
+                bold += 1
+            elif token.type == 'strong_close':
+                bold = max(0, bold - 1)
+            elif token.type == 'em_open':
+                italic += 1
+            elif token.type == 'em_close':
+                italic = max(0, italic - 1)
+            elif token.type in ('softbreak', 'hardbreak'):
+                paragraph.add_run().add_break()
+            elif token.type in ('text', 'code_inline', 'html_inline', 'image'):
+                run = paragraph.add_run(token.content)
+                _style_run(run, size=size, bold=force_bold or bold > 0, color=color)
+                run.italic = italic > 0
 
 
 def _add_table(document: Document, lines: list[str]) -> None:
@@ -230,6 +269,8 @@ def _add_table(document: Document, lines: list[str]) -> None:
     table = document.add_table(rows=len(rows), cols=cols)
     table.style = "Table Grid"
     table.autofit = True
+    header = OxmlElement('w:tblHeader')
+    table.rows[0]._tr.get_or_add_trPr().append(header)
     for i, row in enumerate(rows):
         for j in range(cols):
             cell = table.rows[i].cells[j]
@@ -251,7 +292,7 @@ def _split_cells(line: str) -> list[str]:
         text = text[1:]
     if text.endswith("|"):
         text = text[:-1]
-    return [cell.strip() for cell in text.split("|")]
+    return [cell.strip().replace(r'\|', '|') for cell in re.split(r'(?<!\\)\|', text)]
 
 
 def _is_sep_row(line: str) -> bool:
