@@ -52,12 +52,13 @@ class OfficialRosterTests(TestCase):
         response = self.client.post(reverse('archive_center'), self.payload)
         self.assertEqual(response.status_code, 200, response.context['form'].errors if response.context else '')
         with ZipFile(BytesIO(payload_bytes(response))) as z:
-            self.assertIn('正式名单与账号核对.docx', z.namelist())
+            self.assertEqual({n.split('/')[0] for n in z.namelist()}, {'数字化平台过程数据.docx', '本批次学情分析报告.docx', '本批次研修总结报告.docx', '学员研修成果', '教师个人教研报告'})
             personal = [n for n in z.namelist() if n.startswith('教师个人教研报告/') and n.endswith('.docx')
                         and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]
             self.assertEqual(len(personal), 3)
             process = word_text(z.read('数字化平台过程数据.docx'))
             self.assertIn('正式老师', process)
+            self.assertIn('正式名单与账号核对', process)
             self.assertIn('未注册老师', process)
             self.assertNotIn('不确定账号资料', process)
             self.assertNotIn('范围之外资料', process)
@@ -74,6 +75,26 @@ class OfficialRosterTests(TestCase):
         self.teacher.refresh_from_db()
         self.assertEqual(self.teacher.first_name, '')
         self.assertEqual(self.teacher.teacher_profile.subject, '语文')
+
+    def test_each_teacher_gets_complete_achievements_and_only_own_alias_is_replaced(self):
+        self.note.content = '**教师姓名**：1234_用户\n\n完整原文，保留另一位 9999_用户 的引用。'
+        self.note.save()
+        ResearchNote.objects.create(author=self.teacher, title='另一篇成果', content='另一个成果的完整末尾。')
+        response = self.client.post(reverse('archive_center'), self.payload)
+        with ZipFile(BytesIO(payload_bytes(response))) as z:
+            achievements = [n for n in z.namelist() if n.startswith('学员研修成果/')]
+            self.assertEqual(len(achievements), 3)
+            self.assertIn('学员研修成果/01_正式老师_研修成果.docx', achievements)
+            body = word_text(z.read(achievements[0]))
+            self.assertIn('正式老师', body)
+            self.assertNotIn('1234_用户', body)
+            self.assertIn('9999_用户', body)
+            self.assertIn('另一个成果的完整末尾。', body)
+            self.assertNotIn('范围之外资料', body)
+            self.assertNotIn('不确定账号资料', body)
+            self.assertIn('资料待补充', word_text(z.read('学员研修成果/02_未注册老师_研修成果.docx')))
+        self.note.refresh_from_db()
+        self.assertIn('1234_用户', self.note.content)
 
     def test_only_missing_official_members_can_export(self):
         self.batch.teachers.clear()

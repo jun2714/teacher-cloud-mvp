@@ -1,7 +1,7 @@
 {% extends 'admin/guidance_base.html' %}
 {% block guidance_content %}
 <section class="guidance-section"><h2>按研修批次归档</h2><nav class="archive-batches" aria-label="研修批次选择">{% for batch in batches %}<a href="?batch={{ batch.pk }}" class="archive-batch{% if selected_batch.pk == batch.pk %} selected{% endif %}" {% if selected_batch.pk == batch.pk %}aria-current="page"{% endif %}><strong>{{ batch.name }}</strong><span>{{ batch.start_date|date:'Y.m.d' }} — {{ batch.end_date|date:'m.d' }}</span><small>{% if batch.confirmed_at %}已确认 {{ batch.teacher_count }} 位教师{% else %}待核对教师名单{% endif %}</small></a>{% endfor %}</nav><p class="guidance-caption">先根据注册与使用时间查找老师，核对并保存该批名单，再导出本阶段内容。跨批使用的老师会显示其他批次线索。</p></section>
-<section class="guidance-section archive-intro"><h2>研修报告与资料归档</h2><p class="evidence-note">选择实际参训教师和日期，整理过程数据、成果原文，并生成批次分析、研修总结或教师个人报告。过程数据、名单、目录和报告均导出为 Word，便于编辑、打印和装订；单份直接下载，多份打包 ZIP，解压后打开 Word 文件。</p>
+<section class="guidance-section archive-intro"><h2>研修报告与资料归档</h2><p class="evidence-note">按批次导出五类 Word 资料：过程数据、学情分析、研修总结各一份；研修成果和个人教研报告按老师分别导出，以正式姓名命名。每位老师的成果按功能类型汇集在一份文档中，保留本批次日期内的完整内容。多份打包 ZIP，解压即可编辑、打印和装订；名单及核对依据包含在过程数据中。</p>
 <div class="archive-purpose"><article><strong>本批次学情分析</strong><p>分析参训教师的基础信息、参与情况、学习关注点和指导需求。</p></article><article><strong>本批次研修总结</strong><p>梳理实际研修过程、成果材料、具体问题及后续改进安排。</p></article><article><strong>教师个人教研报告</strong><p>综合该教师的笔记、教学设计、听评课、已有报告和提问，形成有来源的报告。</p></article></div>
 <p class="guidance-caption">报告根据已保存材料自动整理，含内容节选、来源编号和行动建议，建议核对后使用。一次最多 100 位教师、5000 条过程记录；成果原文最多 500 份。</p></section>
 <form method="post" class="archive-form" id="archive-form">{% csrf_token %}

@@ -1,5 +1,6 @@
 """Print-ready Word tables for archive data and document indexes."""
 from io import BytesIO
+from copy import deepcopy
 import re
 
 from docx import Document
@@ -92,6 +93,15 @@ def print_tables(title, sections, *, metadata=(), note=''):
                 _font(p.add_run(_value(value)), 10, index == 0)
         doc.add_paragraph().paragraph_format.space_after = Pt(0)
 
+    _page_numbers(doc)
+    output = BytesIO()
+    doc.save(output)
+    return output.getvalue()
+
+
+def _page_numbers(doc):
+    page = doc.sections[0]
+    page.footer_distance = Mm(9)
     footer = page.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     _font(footer.add_run('第 '), 9)
@@ -100,6 +110,22 @@ def print_tables(title, sections, *, metadata=(), note=''):
         element.set(qn('w:instr'), field)
         footer._p.append(element)
         _font(footer.add_run(suffix), 9)
+
+
+def collected_documents(title, introduction, documents):
+    """One teacher's complete materials, with each source starting on a new page."""
+    from services.docx_export import markdown_to_docx
+
+    doc = Document(markdown_to_docx('# ' + title + '\n\n' + introduction, background=False))
+    for heading, body in documents:
+        part = Document(markdown_to_docx('# ' + heading + '\n\n' + body, background=False))
+        doc.add_page_break()
+        # This renderer emits text/tables only when background=False; it has no
+        # media/hyperlink relationships that would need remapping between files.
+        for element in part.element.body:
+            if element.tag != qn('w:sectPr'):
+                doc.element.body.insert(-1, deepcopy(element))
+    _page_numbers(doc)
     output = BytesIO()
     doc.save(output)
     return output.getvalue()

@@ -112,9 +112,12 @@ class BatchRosterTests(TestCase):
         with ZipFile(BytesIO(payload_bytes(self.post(scope='batch', batch_revision=1, teacher_ids=[], categories=['B5'])))) as zipfile:
             docs = [n for n in zipfile.namelist() if n.endswith('.docx')
                     and n.rsplit('/', 1)[-1] not in ('成果清单.docx', '批次教师名单.docx')]
-            self.assertEqual(len(docs), 1)
-            self.assertIn('第一批独有内容', word_text(zipfile.read(docs[0])))
-            self.assertIn('学员研修成果/批次教师名单.docx', zipfile.namelist())
+            self.assertEqual(len(docs), 3)
+            alice = next(n for n in docs if n.startswith(f'学员研修成果/{self.alice.pk}_'))
+            self.assertIn('第一批独有内容', word_text(zipfile.read(alice)))
+            carol = next(n for n in docs if n.startswith(f'学员研修成果/{self.carol.pk}_'))
+            self.assertIn('资料待补充', word_text(zipfile.read(carol)))
+            self.assertFalse(any(n.endswith('.csv') for n in zipfile.namelist()))
 
     def test_all_period_candidates_export_and_registered_only_teacher_remains_visible(self):
         response = self.post(scope='filtered', teacher_ids=[], categories=['D1'])

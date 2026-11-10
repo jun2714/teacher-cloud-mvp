@@ -313,7 +313,8 @@ def batch_summary(e):
 def personal_report(e):
     p = e.profiles[0]
     body = e.intro('本报告根据该教师在所选期间的笔记、教学设计、听评课、已有报告及提问整理个人研修情况。建议由教师核对、补充亲身实践和反思后使用。')
-    body += f'教师：{text(display_name(p.user))}（编号 {p.user_id}）\n\n学校：{text(p.school_name)}；学科：{text(p.subject)}；年级：{text(p.grade)}\n\n'
+    number = f'名单序号 {e.data["official_rows"][0]["no"]}' if e.data.get('official_rows') else f'编号 {p.user_id}'
+    body += f'教师：{text(display_name(p.user))}（{number}）\n\n学校：{text(p.school_name)}；学科：{text(p.subject)}；年级：{text(p.grade) or "未提供"}\n\n'
     body += '## 一 个人研修过程\n\n' + e.participation() + e.material_summary()
     if not any(e.filled.values()) and not e.questions and not e.messages:
         body += '## 资料待补充\n\n当前范围缺少可用于撰写学习内容与反思的正文或提问，本文件是材料核对稿，不代表个人研修报告已完成。请补充笔记或实践材料后重新生成。\n\n'

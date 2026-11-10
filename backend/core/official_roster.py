@@ -9,6 +9,15 @@ from django.core.exceptions import ValidationError
 from .guidance import display_name
 
 
+def replace_default_name(value, row):
+    """Replace only this author's verified auto-generated identity in exports."""
+    for alias in {row.get('account', ''), row.get('account_name', '')}:
+        if re.fullmatch(r'\d{4}_用户', alias):
+            value = re.sub(r'(?<![0-9A-Za-z_])' + re.escape(alias) + r'(?![0-9A-Za-z_])',
+                           lambda _: row['name'], value or '')
+    return value
+
+
 def match_roster(teachers, profiles, *, confirmed_names=()):
     """Match a unique complete phone only. Names alone are review candidates."""
     if not teachers or len(teachers) > 100:
@@ -60,6 +69,8 @@ def apply_official_roster(data, evidence):
         if original:
             p, user = copy.copy(original), copy.copy(original.user)
             row.update(account=original.user.username, account_name=display_name(original.user), user_id=original.user_id)
+            phone = original.user.email.strip()
+            row['phone_tail'] = phone[-4:] if re.fullmatch(r'1\d{10}', phone) else ''
             user.first_name = row['name']
             p.user = user
             p.school_name, p.subject = row['school'], row['subject']
@@ -82,10 +93,23 @@ def apply_official_roster(data, evidence):
         if row['profile'].user_id in renamed:
             row['profile'] = renamed[row['profile'].user_id]
             row['name'] = display_name(row['profile'].user)
-    for records in evidence.groups.values():
+    identities = {r['user_id']: r for r in audit}
+    from .guidance import BODY_FIELDS
+    for kind, records in evidence.groups.items():
         for record in records:
             if record.author_id in renamed:
                 record.author = renamed[record.author_id].user
+                record.title = replace_default_name(record.title, identities[record.author_id])
+                field = BODY_FIELDS[kind]
+                setattr(record, field, replace_default_name(getattr(record, field) or '', identities[record.author_id]))
+    evidence.process = [(uid, label, pk, replace_default_name(title, identities[uid]), when)
+                        for uid, label, pk, title, when in evidence.process]
+    for question in evidence.questions:
+        question.title = replace_default_name(question.title, identities[question.author_id])
+        question.content = replace_default_name(question.content, identities[question.author_id])
+    for message in evidence.messages:
+        message.content = replace_default_name(message.content, identities[message.chat.author_id])
+        message.chat.title = replace_default_name(message.chat.title, identities[message.chat.author_id])
     return evidence
 
 
