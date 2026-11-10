@@ -52,10 +52,11 @@ class OfficialRosterTests(TestCase):
         response = self.client.post(reverse('archive_center'), self.payload)
         self.assertEqual(response.status_code, 200, response.context['form'].errors if response.context else '')
         with ZipFile(BytesIO(payload_bytes(response))) as z:
-            self.assertIn('正式名单与账号核对.csv', z.namelist())
-            personal = [n for n in z.namelist() if n.startswith('教师个人教研报告/') and n.endswith('.docx')]
+            self.assertIn('正式名单与账号核对.docx', z.namelist())
+            personal = [n for n in z.namelist() if n.startswith('教师个人教研报告/') and n.endswith('.docx')
+                        and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]
             self.assertEqual(len(personal), 3)
-            process = z.read('数字化平台过程数据.csv').decode('utf-8-sig')
+            process = word_text(z.read('数字化平台过程数据.docx'))
             self.assertIn('正式老师', process)
             self.assertIn('未注册老师', process)
             self.assertNotIn('不确定账号资料', process)
@@ -95,7 +96,7 @@ class OfficialRosterTests(TestCase):
                                    'teacher_ids':[self.teacher.teacher_profile.pk]})
         self.assertEqual(response.status_code, 200)
         with ZipFile(BytesIO(payload_bytes(response))) as z:
-            self.assertIn('真实研修笔记', z.read('数字化平台过程数据.csv').decode('utf-8-sig'))
+            self.assertIn('真实研修笔记', word_text(z.read('数字化平台过程数据.docx')))
             analysis = word_text(z.read('本批次学情分析报告.docx'))
             self.assertIn('本期注册 1 人，有本期使用证据 1 人', analysis)
 

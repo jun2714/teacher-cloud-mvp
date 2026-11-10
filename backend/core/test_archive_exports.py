@@ -57,11 +57,11 @@ class ArchiveExportTests(TestCase):
     def post(self, **kwargs):
         return self.client.post(self.url, {**self.payload, **kwargs})
 
-    def test_process_export_has_real_scope_and_safe_csv(self):
+    def test_process_export_is_printable_word_with_real_scope(self):
         response = self.post()
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
-        text = response.content.decode('utf-8-sig')
+        self.assertIn('wordprocessingml', response['Content-Type'])
+        text = word_text(response.content)
         self.assertIn('甲校', text)
         self.assertIn('如何评价朗读', text)
         self.assertNotIn('其他学校资料', text)
@@ -73,9 +73,11 @@ class ArchiveExportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         with ZipFile(BytesIO(payload_bytes(response))) as archive:
             names = archive.namelist()
-            self.assertIn('数字化平台过程数据.csv', names)
+            self.assertIn('数字化平台过程数据.docx', names)
+            self.assertFalse(any(n.endswith('.csv') for n in names))
             self.assertTrue(any(n.startswith('学员研修成果/') and n.endswith('.docx') for n in names))
-            personal = [n for n in names if n.startswith('教师个人教研报告/') and n.endswith('.docx')]
+            personal = [n for n in names if n.startswith('教师个人教研报告/') and n.endswith('.docx')
+                        and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]
             self.assertEqual(len(personal), 2)
             self.assertEqual(len(names), len(set(names)))
             other_report = word_text(archive.read(next(n for n in personal if f'/{self.other.pk}_' in n)))
@@ -107,8 +109,8 @@ class ArchiveExportTests(TestCase):
                 self.assertTrue(document.tables[0].rows[0]._tr.get_or_add_trPr().find(qn('w:tblHeader')) is not None)
             else:
                 with ZipFile(BytesIO(payload_bytes(response))) as archive:
-                    self.assertEqual(len([n for n in archive.namelist() if n.endswith('.docx')]), 2)
-                    self.assertIn('导出清单.csv', archive.namelist())
+                    self.assertEqual(len([n for n in archive.namelist() if n.endswith('.docx')]), 3)
+                    self.assertIn('导出清单.docx', archive.namelist())
 
     def test_invalid_selections_dates_and_unavailable_permissions_fail(self):
         for kwargs in ({'teacher_ids': []}, {'teacher_ids': ['99999999']}, {'school': '甲校', 'teacher_ids': [self.other.teacher_profile.pk]},
@@ -128,7 +130,7 @@ class ArchiveExportTests(TestCase):
     def test_filtered_scope_and_limits_do_not_silently_truncate(self):
         response = self.post(scope='filtered', school='甲校', teacher_ids=[])
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn('乙校', response.content.decode('utf-8-sig'))
+        self.assertNotIn('乙校', word_text(response.content))
         from unittest.mock import patch
         with patch('core.archive_exports.MAX_RECORDS', 1):
             response = self.post()
@@ -150,7 +152,8 @@ class ArchiveExportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.streaming)
         with ZipFile(BytesIO(payload_bytes(response))) as archive:
-            docs = [n for n in archive.namelist() if n.endswith('.docx')]
+            docs = [n for n in archive.namelist() if n.endswith('.docx')
+                    and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]
             self.assertEqual(len(docs), 90)
             self.assertEqual(len(set(docs)), 90)
             for i, u in enumerate(users):
@@ -275,7 +278,7 @@ class ArchiveExportTests(TestCase):
         for name, when in [('第一天零点', midnight(start)), ('最后一天末尾', midnight(end+timedelta(days=1))-timedelta(microseconds=1)), ('下一天', midnight(end+timedelta(days=1)))]:
             obj = ResearchNote.objects.create(author=self.teacher, title=name, content=name)
             ResearchNote.objects.filter(pk=obj.pk).update(created_at=when)
-        body = self.post(categories=['B4'], start=start, end=end).content.decode('utf-8-sig')
+        body = word_text(self.post(categories=['B4'], start=start, end=end).content)
         self.assertIn('第一天零点', body)
         self.assertIn('最后一天末尾', body)
         self.assertNotIn('下一天', body)

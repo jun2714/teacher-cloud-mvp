@@ -101,7 +101,8 @@ class BatchRosterTests(TestCase):
         self.assertEqual(response.context['form']['scope'].value(), 'batch')
         self.assertEqual({r['profile'].pk for r in response.context['roster_rows'] if r['checked']}, set(selected))
         # A new candidate is not silently added to a previously confirmed roster.
-        body = self.post(scope='batch', batch_revision=1, teacher_ids=[], categories=['B4']).content.decode('utf-8-sig')
+        from .test_archive_exports import word_text
+        body = word_text(self.post(scope='batch', batch_revision=1, teacher_ids=[], categories=['B4']).content)
         self.assertIn('第一批独有内容', body)
         self.assertIn('仅注册', body)
         self.assertIn('需人工补选', body)
@@ -109,15 +110,17 @@ class BatchRosterTests(TestCase):
         self.assertNotIn('同教师第二批内容', body)
         self.assertNotIn('第二批其他教师内容', body)
         with ZipFile(BytesIO(payload_bytes(self.post(scope='batch', batch_revision=1, teacher_ids=[], categories=['B5'])))) as zipfile:
-            docs = [n for n in zipfile.namelist() if n.endswith('.docx')]
+            docs = [n for n in zipfile.namelist() if n.endswith('.docx')
+                    and n.rsplit('/', 1)[-1] not in ('成果清单.docx', '批次教师名单.docx')]
             self.assertEqual(len(docs), 1)
             self.assertIn('第一批独有内容', word_text(zipfile.read(docs[0])))
-            self.assertIn('学员研修成果/批次教师名单.csv', zipfile.namelist())
+            self.assertIn('学员研修成果/批次教师名单.docx', zipfile.namelist())
 
     def test_all_period_candidates_export_and_registered_only_teacher_remains_visible(self):
         response = self.post(scope='filtered', teacher_ids=[], categories=['D1'])
         with ZipFile(BytesIO(payload_bytes(response))) as archive:
-            self.assertEqual(len([n for n in archive.namelist() if n.endswith('.docx')]), 4)
+            self.assertEqual(len([n for n in archive.namelist() if n.endswith('.docx')
+                                  and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]), 4)
             carol = next(n for n in archive.namelist() if n.startswith(f'教师个人教研报告/{self.carol.pk}_'))
             self.assertIn('资料待补充', word_text(archive.read(carol)))
         self.assertEqual(self.post(scope='batch').status_code, 400)
@@ -126,7 +129,7 @@ class BatchRosterTests(TestCase):
         self.assertEqual(self.post(start='2026-10-01').status_code, 400)
         self.assertEqual(self.post(batch=self.second.pk).status_code, 400)
         self.assertEqual(self.post(batch='999999').status_code, 400)
-        body = self.post(batch_name='错误批次名称').content.decode('utf-8-sig')
+        body = word_text(self.post(batch_name='错误批次名称').content)
         self.assertIn(self.first.export_name, body)
         self.assertNotIn('错误批次名称', body)
 

@@ -23,6 +23,7 @@ from django.views.decorators.cache import never_cache
 from community.models import Answer, Question
 from learning.models import AssistantMessage
 from services.docx_export import markdown_to_docx
+from services.archive_documents import print_tables, roster_sections, index_sections
 from .dashboard import CONTENT, DashboardFilters, PERMISSIONS, midnight
 from .guidance import BODY_FIELDS, display_name, render_document, visible_feedback
 from .guidance_views import page_context
@@ -124,7 +125,7 @@ class ExportActionsMixin:
             self.message_user(request, exc.messages[0], level=messages.ERROR)
             return
         if len(files) > 1:
-            files.append(('导出清单.csv', csv_bytes(manifest)))
+            files.append(('导出清单.docx', partial(print_tables, '资料导出清单', index_sections(manifest))))
         return package(files, self.model._meta.verbose_name + '批量导出')
 
 
@@ -276,19 +277,42 @@ def make_archives(data, evidence, report_key=''):
             raise forms.ValidationError('该报告不在当前所选范围内，请重新选择。')
         return package([(safe_name(selected['title']) + '.docx', partial(document_bytes, selected['title'], selected['body'], report=True))], batch)
     files = []
+    metadata = [('研修批次', batch), ('统计日期', f'{data["start"]} 至 {data["end"]}（含首尾日期）'),
+                ('导出时间', evidence.captured_at)]
+    numbers = {p.user_id: i for i, p in enumerate(profiles, 1)}
+    numbers.update({r['user_id']: r['no'] for r in data.get('official_rows', [])})
+    roster = roster_csv_rows(data.get('roster_rows', []))
+    roster[0][0] = '名单序号'
+    for row in roster[1:]:
+        row[0] = numbers[row[0]]
+    roster[1:] = sorted(roster[1:], key=lambda row: row[0])
     if data.get('official_rows'):
-        files.append(('正式名单与账号核对.csv', csv_bytes(official_csv_rows(data))))
+        official = official_csv_rows(data)
+        sections = [('正式名单', official[4][:5], [r[:5] for r in official[5:]], (1, 1.5, 3, 1.5, 2)),
+                    ('账号核对依据', ['名单序号', '姓名', '平台账号与原显示姓名', '核对依据'],
+                     [[r[0], r[1], f'{r[5]}\n{r[6]}' if r[5] else '未匹配', r[7]] for r in official[5:]], (1, 1.5, 3, 4))]
+        files.append(('正式名单与账号核对.docx', partial(print_tables, '正式名单与账号核对',
+                     sections,
+                     metadata=metadata, note='以正式名单核对归档身份，不修改账号或成果原文。未匹配账号不等于未参训。')))
     for category in data['categories']:
         if category == 'B4':
-            rows = [['批次', batch], ['日期范围', data['start'], data['end']], ['导出时间', evidence.captured_at], ['口径', '按创建时间筛选；正文与档案为当前值；仅已保存记录，不含浏览时长；AI回复不算教师活跃。'], [], ['教师编号', '姓名', '学校', '教研组', '学科', '年级', '成果数量', '有正文成果数', '活跃天数']]
+            headers = ['名单序号', '姓名', '学校', '教研组', '学科', '年级', '成果数量', '有正文成果数', '活跃天数']
+            rows = []
             for p in profiles:
-                rows.append([p.user_id, names[p.user_id], p.school_name, p.department, p.subject, p.grade,
+                rows.append([numbers[p.user_id], names[p.user_id], p.school_name, p.department, p.subject or '未提供', p.grade or '未提供',
                              sum(r.author_id == p.user_id for records in groups.values() for r in records),
                              sum(r.author_id == p.user_id for records in evidence.filled.values() for r in records), sum(uid == p.user_id for uid, _ in active)])
-            rows += [[], ['批次名单来源', data.get('roster_source', '本次勾选教师')]] + roster_csv_rows(data.get('roster_rows', []))
-            rows += [[], ['教师编号', '姓名', '记录类型', '记录编号', '标题', '时间']]
-            rows += [[uid, names[uid], label, pk, title, timezone.localtime(when).strftime('%Y-%m-%d %H:%M:%S')] for uid, label, pk, title, when in process]
-            files.append(('数字化平台过程数据.csv', csv_bytes(rows)))
+            detail = [[f'{label} #{pk}', f'{names[uid]}（序号{numbers[uid]}）', title, timezone.localtime(when).strftime('%Y-%m-%d %H:%M:%S')] for uid, label, pk, title, when in process]
+            sections = [('教师基本信息', ['名单序号', '姓名', '学校与教研组', '学科', '年级'],
+                         [[r[0], r[1], r[2] + ('\n' + r[3] if r[3] else ''), r[4], r[5]] for r in rows], (1, 1.5, 3.5, 1.5, 1.5)),
+                        ('教师使用汇总', [headers[i] for i in (0, 1, 6, 7, 8)],
+                         [[r[i] for i in (0, 1, 6, 7, 8)] for r in rows], (1, 1.5, 2, 2, 2))]
+            sections += roster_sections(roster)
+            sections.append(('过程记录明细', ['来源编号', '教师及名单序号', '标题', '时间'], detail, (1.5, 2, 4.5, 2.5)))
+            files.append(('数字化平台过程数据.docx', partial(print_tables, '数字化平台过程数据', sections,
+                         metadata=metadata + [('名单来源', data.get('roster_source', '本次勾选教师'))],
+                         note='按创建时间筛选，仅含平台已保存记录；正文与档案为当前值，不含浏览时长。AI 回复不算教师活跃，暂无记录不等于未参训。名单序号用于对应本次教师名单，来源编号用于查找平台原记录。'
+                              + (official_summary(data['official_rows']) if data.get('official_rows') else ''))))
         elif category == 'B5':
             total = sum(len(rows) for k, rows in groups.items() if data.get('achievement') in ('', None, 'all', k))
             if total > MAX_DOCUMENTS:
@@ -302,8 +326,10 @@ def make_archives(data, evidence, report_key=''):
                 manifest.extend([[row[1], row[0], *row[2:5], f'{label}/{row[5]}', row[6]] for row in rows[1:]])
             if len(manifest) == 1:
                 manifest.append(['所选日期及教师范围暂无符合条件的成果', '', '', '', '', '', '请调整筛选条件'])
-            files.append(('学员研修成果/成果清单.csv', csv_bytes(manifest)))
-            files.append(('学员研修成果/批次教师名单.csv', csv_bytes(roster_csv_rows(data.get('roster_rows', [])))))
+            files.append(('学员研修成果/成果清单.docx', partial(print_tables, '学员研修成果清单',
+                         index_sections([manifest[0]] + [[r[1], r[0], *r[2:]] for r in manifest[1:]]), metadata=metadata)))
+            files.append(('学员研修成果/批次教师名单.docx', partial(print_tables, '批次教师注册与使用名单', roster_sections(roster),
+                         metadata=metadata, note='此表仅列出已匹配平台账号的注册与使用信息；正式名单以“正式名单与账号核对”文档为准。')))
     # Generated report content is shared with the preview; existing originals stay intact.
     for doc in reports:
         # Only our fixed category directory is structural; teacher names are filenames.
@@ -318,8 +344,10 @@ def make_archives(data, evidence, report_key=''):
             has_question = any(s['uid'] == p.user_id and s['kind'] in ('question', 'message') for s in evidence.sources)
             manifest.append([p.user_id, names[p.user_id], p.school_name, n,
                              '已整理，待教师核对' if n or has_question else '资料待补充', safe_name(f'{p.user_id}_{names[p.user_id]}') + '.docx'])
-        files.append(('教师个人教研报告/教师报告清单.csv', csv_bytes(manifest)))
-        files.append(('教师个人教研报告/批次教师名单.csv', csv_bytes(roster_csv_rows(data.get('roster_rows', [])))))
+        files.append(('教师个人教研报告/教师报告清单.docx', partial(print_tables, '教师个人教研报告清单',
+                     index_sections(manifest, 'personal'), metadata=metadata)))
+        files.append(('教师个人教研报告/批次教师名单.docx', partial(print_tables, '批次教师注册与使用名单', roster_sections(roster),
+                     metadata=metadata, note='此表仅列出已匹配平台账号的注册与使用信息；正式名单以“正式名单与账号核对”文档为准。')))
     if not files:
         raise forms.ValidationError('当前范围没有可导出的资料。')
     return package(files, f'{batch}_{data["start"]}_{data["end"]}_归档资料', force_zip=len(files) > 1 or data['categories'] == ['B5'])
