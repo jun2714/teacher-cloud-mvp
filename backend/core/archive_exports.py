@@ -29,6 +29,7 @@ from .guidance_views import page_context
 from .models import TeacherProfile, TrainingBatch
 from .batch_roster import roster_evidence, roster_statistics, roster_csv_rows
 from .training_reports import TrainingEvidence, report_documents
+from .official_roster import apply_official_roster, official_csv_rows, official_summary
 
 CATEGORIES = [('B4', '数字化平台过程数据'), ('B5', '学员研修成果'), ('B6', '本批次学情分析报告'),
               ('B7', '本批次研修总结报告'), ('D1', '教师个人教研报告')]
@@ -85,7 +86,7 @@ def document_bytes(title, body, report=False):
     return markdown_to_docx('# ' + title.replace('\n', ' ') + '\n\n' + body, background=not report).getvalue()
 
 
-def record_files(kind, records):
+def record_files(kind, records, *, report=False):
     spec = next(item for item in CONTENT if item[0] == kind)
     files, manifest, size = [], [['编号', '类型', '教师', '标题', '创建时间', '文件名', '正文状态']], 0
     for obj in records:
@@ -100,7 +101,7 @@ def record_files(kind, records):
             value = getattr(obj, field, '')
             if value:
                 meta += f'{label}：{value}\n\n'
-        files.append((name, partial(document_bytes, obj.title, meta + (body or '尚未填写正文。'))))
+        files.append((name, partial(document_bytes, obj.title, meta + (body or '尚未填写正文。'), report=report)))
         manifest.append([obj.pk, spec[1], display_name(obj.author), obj.title, when, name, '有正文' if body.strip() else '未填写'])
     return files, manifest
 
@@ -150,7 +151,7 @@ class ArchiveForm(DashboardFilters):
         super().__init__(*args, **kwargs)
         if roster_action:
             self.fields['categories'].required = False
-        if roster_action == 'find_teachers':
+        if roster_action == 'find_teachers' or (roster_action != 'save_roster' and self.is_bound and self.data.get('scope') == 'batch'):
             self.fields['teacher_ids'].disabled = True
         school = self.data.get('school', '') if self.is_bound else self.initial.get('school', '')
         qs = TeacherProfile.objects.select_related('user').filter(user__is_staff=False).order_by('user__first_name', 'pk')
@@ -186,14 +187,22 @@ class ArchiveForm(DashboardFilters):
                 raise forms.ValidationError('该批次尚未确认名单，请先核对教师并保存名单。')
             if data.get('batch_revision') != batch.revision:
                 raise forms.ValidationError('该批次名单已更新，请重新打开批次后再导出。')
-            qs = self.fields['teacher_ids'].queryset.filter(training_batches=batch)
+            if batch.official_roster:
+                official = [r for r in batch.official_roster if not data.get('school') or r['school'] == data['school']]
+                if not official:
+                    raise forms.ValidationError('正式名单中没有符合该学校范围的教师。')
+                qs = TeacherProfile.objects.select_related('user').filter(user__is_staff=False,
+                     pk__in=[r['profile_id'] for r in official if r.get('profile_id')])
+                data['official_rows'] = official
+            else:
+                qs = self.fields['teacher_ids'].queryset.filter(training_batches=batch)
         elif self.roster_action != 'save_roster' and data.get('scope') == 'filtered':
             if self.errors:
                 return data
             candidates = roster_evidence(data['start'], data['end'], data.get('school', ''), batch)
             qs = self.fields['teacher_ids'].queryset.filter(pk__in=[r['profile'].pk for r in candidates if r['candidate']])
         if qs is not None:
-            if not qs.exists():
+            if not qs.exists() and not data.get('official_rows'):
                 raise forms.ValidationError('请勾选教师，或选择有教师记录的学校范围。')
             if qs.count() > MAX_TEACHERS:
                 raise forms.ValidationError('一次最多导出 100 位教师，请按学校或教研组分批导出。')
@@ -230,7 +239,11 @@ def scope_data(profiles, filters):
 
 def training_evidence(data, user):
     selected = {p.pk for p in data['profiles']}
-    data['roster_rows'] = [r for r in roster_evidence(data['start'], data['end'], data.get('school', ''), data.get('batch')) if r['profile'].pk in selected]
+    batch = data.get('batch')
+    # Official school filtering has already selected the accounts. Their current
+    # profile school may differ and must not hide registration/usage evidence.
+    school = '' if batch and batch.official_roster and data.get('scope') == 'batch' else data.get('school', '')
+    data['roster_rows'] = [r for r in roster_evidence(data['start'], data['end'], school, batch) if r['profile'].pk in selected]
     groups, process, active = scope_data(data['profiles'], data)
     ids = [p.user_id for p in data['profiles']]
     window = dict(created_at__gte=midnight(data['start']), created_at__lt=midnight(data['end'] + timedelta(days=1)))
@@ -248,7 +261,7 @@ def training_evidence(data, user):
     text_size += sum(len(f.suggestions) + len(f.action_plan) for f in feedback or [])
     if text_size > MAX_TEXT:
         raise forms.ValidationError('所选正文和提问内容过多，请缩小范围后分批生成。')
-    return TrainingEvidence(data, groups, process, active, questions, messages, feedback)
+    return apply_official_roster(data, TrainingEvidence(data, groups, process, active, questions, messages, feedback))
 
 
 def make_archives(data, evidence, report_key=''):
@@ -263,6 +276,8 @@ def make_archives(data, evidence, report_key=''):
             raise forms.ValidationError('该报告不在当前所选范围内，请重新选择。')
         return package([(safe_name(selected['title']) + '.docx', partial(document_bytes, selected['title'], selected['body'], report=True))], batch)
     files = []
+    if data.get('official_rows'):
+        files.append(('正式名单与账号核对.csv', csv_bytes(official_csv_rows(data))))
     for category in data['categories']:
         if category == 'B4':
             rows = [['批次', batch], ['日期范围', data['start'], data['end']], ['导出时间', evidence.captured_at], ['口径', '按创建时间筛选；正文与档案为当前值；仅已保存记录，不含浏览时长；AI回复不算教师活跃。'], [], ['教师编号', '姓名', '学校', '教研组', '学科', '年级', '成果数量', '有正文成果数', '活跃天数']]
@@ -282,7 +297,7 @@ def make_archives(data, evidence, report_key=''):
             for key, label, *_ in CONTENT:
                 if data.get('achievement') not in ('', None, 'all', key):
                     continue
-                docs, rows = record_files(key, groups[key])
+                docs, rows = record_files(key, groups[key], report=bool(data.get('official_rows')))
                 files.extend((f'学员研修成果/{label}/{name}', body) for name, body in docs)
                 manifest.extend([[row[1], row[0], *row[2:5], f'{label}/{row[5]}', row[6]] for row in rows[1:]])
             if len(manifest) == 1:
@@ -318,6 +333,20 @@ def archive_center(request):
     if request.method not in ('GET', 'POST'):
         from django.http import HttpResponseNotAllowed
         return HttpResponseNotAllowed(['GET', 'POST'])
+    if request.method == 'GET' and request.GET.get('download_batch', '').isdigit():
+        batch = TrainingBatch.objects.filter(pk=request.GET['download_batch']).first()
+        if batch and batch.confirmed_at:
+            quick = ArchiveForm(dict(batch=batch.pk, batch_name=batch.export_name, batch_revision=batch.revision,
+                                     start=str(batch.start_date), end=str(batch.end_date), scope='batch',
+                                     achievement='all', categories=[key for key, _ in CATEGORIES]))
+            if quick.is_valid():
+                try:
+                    return make_archives(quick.cleaned_data, training_evidence(quick.cleaned_data, request.user))
+                except forms.ValidationError as exc:
+                    quick.add_error(None, exc)
+            return render_archive_form(request, quick, status=400)
+        messages.error(request, '请先确认该批次名单。')
+        return redirect(reverse('archive_center'))
     action = request.POST.get('action', '')
     roster_action = action if action in ('find_teachers', 'save_roster') else ''
     initial = {}
@@ -340,6 +369,8 @@ def archive_center(request):
                 batch = form.cleaned_data.get('batch')
                 if not batch:
                     raise forms.ValidationError('请先选择一个研修批次再保存名单。')
+                if batch.official_roster:
+                    raise forms.ValidationError('本批次已导入正式名单。为防止覆盖未匹配人员，请更新正式名单映射；临时勾选仍可直接导出。')
                 if form.cleaned_data.get('school'):
                     raise forms.ValidationError('保存完整批次名单前请清空学校筛选并重新查询，避免遗漏其他学校教师。')
                 with transaction.atomic():
@@ -399,5 +430,6 @@ def render_archive_form(request, form, status=200, suggest=False):
             form.fields[field].widget.attrs['readonly'] = True
     return render(request, 'admin/archive_center.html', page_context(request, title='资料导出与批次归档', form=form,
                   batches=batches, selected_batch=batch, roster_rows=rows, roster_stats=roster_statistics(rows),
+                  official_summary=official_summary(batch.official_roster) if batch and batch.official_roster else '',
                   roster_valid=valid_period, can_save_roster=request.user.has_perm('core.change_trainingbatch')),
                   status=status)

@@ -258,6 +258,10 @@ def _add_runs_with_bold(paragraph, text: str, size: float = 12, force_bold: bool
 
 
 def _add_table(document: Document, lines: list[str]) -> None:
+    # A continued pipe table may start with a data row after a blank line.
+    # Only a Markdown separator identifies a real header; repeating a data
+    # row on every Word page duplicates teachers' original content.
+    has_header = len(lines) > 1 and _is_sep_row(lines[1]) and not _is_sep_row(lines[0])
     rows = []
     for line in lines:
         if _is_sep_row(line):
@@ -269,16 +273,17 @@ def _add_table(document: Document, lines: list[str]) -> None:
     table = document.add_table(rows=len(rows), cols=cols)
     table.style = "Table Grid"
     table.autofit = True
-    header = OxmlElement('w:tblHeader')
-    table.rows[0]._tr.get_or_add_trPr().append(header)
+    if has_header:
+        header = OxmlElement('w:tblHeader')
+        table.rows[0]._tr.get_or_add_trPr().append(header)
     for i, row in enumerate(rows):
         for j in range(cols):
             cell = table.rows[i].cells[j]
             cell.text = ""
             paragraph = cell.paragraphs[0]
             value = row[j] if j < len(row) else ""
-            _add_runs_with_bold(paragraph, value, size=10, force_bold=(i == 0))
-            if i == 0:
+            _add_runs_with_bold(paragraph, value, size=10, force_bold=(has_header and i == 0))
+            if has_header and i == 0:
                 shading = OxmlElement("w:shd")
                 shading.set(qn("w:fill"), "E8F1FF")
                 shading.set(qn("w:val"), "clear")

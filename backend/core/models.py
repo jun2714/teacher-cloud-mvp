@@ -28,6 +28,8 @@ class TrainingBatch(models.Model):
     confirmed_at = models.DateTimeField('名单确认时间', null=True, blank=True)
     confirmed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='名单确认人')
     revision = models.PositiveIntegerField('名单版本', default=0)
+    official_roster = models.JSONField('正式名单快照', default=list, blank=True)
+    roster_source = models.CharField('正式名单来源', max_length=200, blank=True, default='')
 
     class Meta:
         ordering = ['start_date', 'pk']

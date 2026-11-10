@@ -89,6 +89,8 @@ class TrainingEvidence:
                                 None if self.feedback is None else [f for f in self.feedback if f.teacher_id == uid])
         one.__dict__['sources'] = [s for s in self.sources if s['uid'] == uid]
         one.__dict__['filled'] = {k: [r for r in rows if r.author_id == uid] for k, rows in self.filled.items()}
+        if self.data.get('official_rows'):
+            one.data['official_rows'] = [r for r in self.data['official_rows'] if r['user_id'] == uid]
         return one
 
     @cached_property
@@ -131,6 +133,11 @@ class TrainingEvidence:
         body += f'报告生成时间：{self.captured_at}\n\n{purpose}\n\n'
         if self.data.get('roster_source'):
             body += '教师范围：' + text(self.data['roster_source']) + '。只纳入这些教师在上述期间创建的内容。\n\n'
+        if self.data.get('official_rows'):
+            from .official_roster import official_summary
+            body += official_summary(self.data['official_rows']) + '未匹配或待核对人员仍保留在正式名单人数中，不纳入不确定账号的材料。未匹配不等于未参训。\n\n'
+            body += table(['名单序号', '姓名', '学校', '学科', '账号核对状态'],
+                          [(r['no'], r['name'], r['school'], r['subject'], r['status']) for r in self.data['official_rows']])
         if self.data.get('roster_rows'):
             roster = self.data['roster_rows']
             body += f'所选教师中，本期注册 {sum(r["registered"] for r in roster)} 人，有本期使用证据 {sum(r["used"] for r in roster)} 人（两项可重叠）。\n\n'
@@ -249,7 +256,8 @@ class TrainingEvidence:
 def batch_analysis(e):
     body = e.intro('本报告分析本批次参训教师的参与情况、研修材料、学习关注点和支持需求，供培训负责人调整指导安排。')
     body += '## 一 参训教师基础与研修概况\n\n' + e.participation()
-    body += '教师基础信息以当前档案登记为准，尚未收集教龄、职称和训前能力测评，不能仅凭学科年级判断起点能力。\n\n' + e.profile_distribution()
+    body += ('姓名、学校和学科以正式名单为准，名单未提供的年级不推断。' if e.data.get('official_rows') else '教师基础信息以当前档案登记为准。')
+    body += '尚未收集教龄、职称和训前能力测评，不能仅凭学科年级判断起点能力。\n\n' + e.profile_distribution()
     body += '## 二 学习参与与材料完成情况\n\n' + e.material_summary() + e.task_progress()
     body += '## 三 学习关注点与具体需求\n\n' + e.learning_needs()
     body += '## 四 分层支持安排\n\n'
