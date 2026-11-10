@@ -2,7 +2,6 @@
 import copy
 import re
 from collections import Counter
-from types import SimpleNamespace
 
 from django.core.exceptions import ValidationError
 
@@ -56,17 +55,20 @@ def match_roster(teachers, profiles, *, confirmed_names=()):
 
 def apply_official_roster(data, evidence):
     batch = data.get('batch')
-    if not batch or not batch.official_roster or data.get('scope') != 'batch':
+    if not batch or not batch.official_roster:
         return evidence
     entries = batch.official_roster
     if data.get('school'):
         entries = [r for r in entries if r['school'] == data['school']]
     available = {p.pk: p for p in data['profiles']}
+    if data.get('scope') != 'batch':
+        entries = [r for r in entries if r.get('profile_id') in available]
+    data['official_roster_summary'] = official_summary(entries)
     renamed, profiles, audit = {}, [], []
     for entry in entries:
         row = dict(entry)
         original = available.get(row.get('profile_id'))
-        if original:
+        if original and row.get('status') == '已匹配':
             p, user = copy.copy(original), copy.copy(original.user)
             row.update(account=original.user.username, account_name=display_name(original.user), user_id=original.user_id)
             phone = original.user.email.strip()
@@ -78,14 +80,11 @@ def apply_official_roster(data, evidence):
             p.grade, p.department = '', ''
             renamed[p.user_id] = p
         else:
-            uid = f'名单{row["no"]:02d}'
-            p = SimpleNamespace(pk=None, user_id=uid, school_name=row['school'], subject=row['subject'],
-                                department='', grade='', user=SimpleNamespace(first_name=row['name'], username='', pk=uid))
-            row.update(account='', account_name='', user_id=uid)
-            if row.get('profile_id'):
-                row.update(status='待核对账号', basis='已匹配账号当前不可用，需重新核对')
+            continue
         profiles.append(p)
         audit.append(row)
+    if not profiles:
+        raise ValidationError('本批次正式名单暂无已匹配账号，不生成无法匹配教师的材料。请先核对名单。')
     data['profiles'] = evidence.profiles = profiles
     data['official_rows'] = audit
     data['roster_source'] = f'正式名单：{batch.roster_source}；姓名、学校、学科以正式名单为准；账号未改动'

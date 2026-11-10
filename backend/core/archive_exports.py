@@ -186,7 +186,13 @@ class ArchiveForm(DashboardFilters):
             self.fields['teacher_ids'].disabled = True
         school = self.data.get('school', '') if self.is_bound else self.initial.get('school', '')
         qs = TeacherProfile.objects.select_related('user').filter(user__is_staff=False).order_by('user__first_name', 'pk')
-        if school:
+        batch_id = self.data.get('batch') if self.is_bound else self.initial.get('batch')
+        batch_id = getattr(batch_id, 'pk', batch_id)
+        batch = TrainingBatch.objects.filter(pk=batch_id).first() if str(batch_id or '').isdigit() else None
+        if batch and batch.official_roster:
+            qs = qs.filter(pk__in=[r['profile_id'] for r in batch.official_roster if r.get('profile_id') and
+                                   r.get('status') == '已匹配' and (not school or r['school'] == school)])
+        elif school:
             qs = qs.filter(school_name=school)
         self.fields['teacher_ids'].queryset = qs
         self.fields['teacher_ids'].label_from_instance = lambda p: f'{display_name(p.user)}（{p.school_name} · 账号 {p.user.username}）'
@@ -223,7 +229,7 @@ class ArchiveForm(DashboardFilters):
                 if not official:
                     raise forms.ValidationError('正式名单中没有符合该学校范围的教师。')
                 qs = TeacherProfile.objects.select_related('user').filter(user__is_staff=False,
-                     pk__in=[r['profile_id'] for r in official if r.get('profile_id')])
+                     pk__in=[r['profile_id'] for r in official if r.get('profile_id') and r.get('status') == '已匹配'])
                 data['official_rows'] = official
             else:
                 qs = self.fields['teacher_ids'].queryset.filter(training_batches=batch)
@@ -340,7 +346,7 @@ def make_archives(data, evidence, report_key=''):
             files.append(('数字化平台过程数据.docx', partial(print_tables, '数字化平台过程数据', sections,
                          metadata=metadata + [('名单来源', data.get('roster_source', '本次勾选教师'))],
                          note='按创建时间筛选，仅含平台已保存记录；正文与档案为当前值，不含浏览时长。AI 回复不算教师活跃，暂无记录不等于未参训。名单序号用于对应本次教师名单，来源编号用于查找平台原记录。'
-                              + (official_summary(data['official_rows']) if data.get('official_rows') else ''))))
+                              + (data.get('official_roster_summary', '') + '仅导出已匹配本人账号的教师，未匹配人员不列入材料。' if data.get('official_rows') else ''))))
         elif category == 'B5':
             total = sum(len(rows) for k, rows in groups.items() if data.get('achievement') in ('', None, 'all', k))
             if total > MAX_DOCUMENTS:
@@ -470,5 +476,6 @@ def render_archive_form(request, form, status=200, suggest=False):
     return render(request, 'admin/archive_center.html', page_context(request, title='资料导出与批次归档', form=form,
                   batches=batches, selected_batch=batch, roster_rows=rows, roster_stats=roster_statistics(rows),
                   official_summary=official_summary(batch.official_roster) if batch and batch.official_roster else '',
+                  official_display_rows=[r for r in batch.official_roster if r.get('profile_id') and r.get('status') == '已匹配'] if batch and batch.official_roster else [],
                   roster_valid=valid_period, can_save_roster=request.user.has_perm('core.change_trainingbatch')),
                   status=status)

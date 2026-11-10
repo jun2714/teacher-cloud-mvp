@@ -14,16 +14,24 @@ from .models import TeacherProfile, TrainingBatch
 
 def roster_evidence(start, end, school='', batch=None):
     profiles = TeacherProfile.objects.filter(user__is_staff=False).select_related('user').order_by('user__first_name', 'pk')
-    if school:
+    official = {r['profile_id']: r for r in batch.official_roster
+                if r.get('profile_id') and r.get('status') == '已匹配' and (not school or r['school'] == school)} if batch and batch.official_roster else None
+    if official is not None:
+        profiles = profiles.filter(pk__in=official)
+    elif school:
         profiles = profiles.filter(school_name=school)
     batches = list(TrainingBatch.objects.prefetch_related('teachers'))
     members = {b.pk: {p.pk for p in b.teachers.all()} for b in batches}
     rows = {}
     for p in profiles:
+        identity = official.get(p.pk) if official is not None else None
+        if identity:
+            p.school_name, p.subject = identity['school'], identity['subject']
         joined = timezone.localdate(p.user.date_joined)
         login = p.user.last_login
         login_in_period = bool(login and start <= timezone.localdate(login) <= end)
-        rows[p.user_id] = dict(profile=p, name=display_name(p.user), registered_at=p.user.date_joined,
+        rows[p.user_id] = dict(profile=p, name=identity['name'] if identity else display_name(p.user),
+                              official_no=identity['no'] if identity else None, registered_at=p.user.date_joined,
                               registered=start <= joined <= end, login_in_period=login_in_period,
                               last_login=login, first_use=login if login_in_period else None,
                               last_use=login if login_in_period else None,
@@ -63,7 +71,7 @@ def roster_evidence(start, end, school='', batch=None):
         row['other_usage'] = sorted(name for name in row['used_batches'] if not batch or name != batch.name)
         row['day_count'] = len(row['days'])
         row['basis'] = '本期注册且有使用记录' if row['registered'] and row['used'] else '本期注册，暂无本期使用记录' if row['registered'] else '非本期注册，本期有使用记录' if row['used'] else '暂无本期注册或使用记录'
-    return list(rows.values())
+    return sorted(rows.values(), key=lambda r: r['official_no']) if official is not None else list(rows.values())
 
 
 def roster_statistics(rows):

@@ -91,6 +91,8 @@ class TrainingEvidence:
         one.__dict__['filled'] = {k: [r for r in rows if r.author_id == uid] for k, rows in self.filled.items()}
         if self.data.get('official_rows'):
             one.data['official_rows'] = [r for r in self.data['official_rows'] if r['user_id'] == uid]
+            from .official_roster import official_summary
+            one.data['official_roster_summary'] = official_summary(one.data['official_rows'])
         return one
 
     @cached_property
@@ -135,7 +137,7 @@ class TrainingEvidence:
             body += '教师范围：' + text(self.data['roster_source']) + '。只纳入这些教师在上述期间创建的内容。\n\n'
         if self.data.get('official_rows'):
             from .official_roster import official_summary
-            body += official_summary(self.data['official_rows']) + '未匹配或待核对人员仍保留在正式名单人数中，不纳入不确定账号的材料。未匹配不等于未参训。\n\n'
+            body += self.data.get('official_roster_summary', official_summary(self.data['official_rows'])) + '以下仅统计与正式名单已匹配的教师账号及本批次材料；未匹配人员不列入明细和个人文档，未匹配不等于未参训。\n\n'
             body += table(['名单序号', '姓名', '学校', '学科', '账号核对状态'],
                           [(r['no'], r['name'], r['school'], r['subject'], r['status']) for r in self.data['official_rows']])
         if self.data.get('roster_rows'):

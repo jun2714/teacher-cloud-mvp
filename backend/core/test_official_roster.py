@@ -55,20 +55,18 @@ class OfficialRosterTests(TestCase):
             self.assertEqual({n.split('/')[0] for n in z.namelist()}, {'数字化平台过程数据.docx', '本批次学情分析报告.docx', '本批次研修总结报告.docx', '学员研修成果', '教师个人教研报告'})
             personal = [n for n in z.namelist() if n.startswith('教师个人教研报告/') and n.endswith('.docx')
                         and n.rsplit('/', 1)[-1] not in ('教师报告清单.docx', '批次教师名单.docx')]
-            self.assertEqual(len(personal), 3)
+            self.assertEqual(len(personal), 1)
             process = word_text(z.read('数字化平台过程数据.docx'))
             self.assertIn('正式老师', process)
             self.assertIn('正式名单与账号核对', process)
-            self.assertIn('未注册老师', process)
+            self.assertNotIn('未注册老师', process)
             self.assertNotIn('不确定账号资料', process)
             self.assertNotIn('范围之外资料', process)
             analysis = word_text(z.read('本批次学情分析报告.docx'))
             self.assertIn('正式名单 3 人', analysis)
-            self.assertIn('本次选入 3 位教师', analysis)
+            self.assertIn('本次选入 1 位教师', analysis)
             self.assertIn('正式学校', analysis)
-            missing = word_text(z.read(next(n for n in personal if '未注册老师' in n)))
-            self.assertIn('资料待补充', missing)
-            self.assertIn('不代表个人研修报告已完成', missing)
+            self.assertFalse(any('未注册老师' in n for n in z.namelist()))
             original = word_text(z.read(next(n for n in z.namelist() if n.startswith('学员研修成果/') and n.endswith('.docx'))))
             self.assertIn('正式老师', original)
             self.assertIn(self.note.content, original)
@@ -83,7 +81,7 @@ class OfficialRosterTests(TestCase):
         response = self.client.post(reverse('archive_center'), self.payload)
         with ZipFile(BytesIO(payload_bytes(response))) as z:
             achievements = [n for n in z.namelist() if n.startswith('学员研修成果/')]
-            self.assertEqual(len(achievements), 3)
+            self.assertEqual(len(achievements), 1)
             self.assertIn('学员研修成果/01_正式老师_研修成果.docx', achievements)
             body = word_text(z.read(achievements[0]))
             self.assertIn('正式老师', body)
@@ -92,17 +90,30 @@ class OfficialRosterTests(TestCase):
             self.assertIn('另一个成果的完整末尾。', body)
             self.assertNotIn('范围之外资料', body)
             self.assertNotIn('不确定账号资料', body)
-            self.assertIn('资料待补充', word_text(z.read('学员研修成果/02_未注册老师_研修成果.docx')))
+            self.assertFalse(any('未注册老师' in n for n in z.namelist()))
         self.note.refresh_from_db()
         self.assertIn('1234_用户', self.note.content)
 
-    def test_only_missing_official_members_can_export(self):
+    def test_only_missing_official_members_do_not_create_fake_teacher_documents(self):
         self.batch.teachers.clear()
         self.batch.official_roster = self.batch.official_roster[1:]
         self.batch.save()
         r = self.client.post(reverse('archive_center'), self.payload)
-        self.assertEqual(r['Content-Type'], 'application/zip')
-        r.close()
+        self.assertContains(r, '暂无已匹配账号', status_code=400)
+
+    def test_official_page_and_custom_selection_are_limited_to_matched_roster(self):
+        page = self.client.get(reverse('archive_center'), {'batch': self.batch.pk})
+        self.assertEqual([r['name'] for r in page.context['roster_rows']], ['正式老师'])
+        self.assertContains(page, '正式学校')
+        self.assertNotContains(page, '1234_用户')
+        self.assertNotContains(page, '未注册老师')
+        bad = self.client.post(reverse('archive_center'), {**self.payload, 'scope': 'selected',
+                               'teacher_ids': [self.same_name.teacher_profile.pk]})
+        self.assertEqual(bad.status_code, 400)
+        selected = self.client.post(reverse('archive_center'), {**self.payload, 'scope': 'selected',
+                                    'teacher_ids': [self.teacher.teacher_profile.pk]})
+        with ZipFile(BytesIO(payload_bytes(selected))) as z:
+            self.assertIn('学员研修成果/01_正式老师_研修成果.docx', z.namelist())
 
     def test_quick_download_checks_login_and_uses_confirmed_roster(self):
         url = reverse('archive_center') + f'?download_batch={self.batch.pk}'
