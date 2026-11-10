@@ -1,0 +1,24 @@
+<section class="panel batch-usage-panel" aria-labelledby="batch-usage-title">
+  <div class="batch-usage-heading">
+    <div><span class="batch-eyebrow">{{ batch.name }} · {{ filters.start|date:'Y.m.d' }}—{{ filters.end|date:'Y.m.d' }} · {{ filters.school|default:'全部学校' }}</span><h2 id="batch-usage-title">教师使用记录</h2></div>
+    <div class="batch-usage-controls"><label for="batch-participants">显示范围</label><select id="batch-participants" name="participants" form="dashboard-filters" data-submit><option value="used" {% if filters.participants != 'all' %}selected{% endif %}>本期有使用记录的老师</option><option value="all" {% if filters.participants == 'all' %}selected{% endif %}>全部已匹配老师</option></select></div>
+  </div>
+  <div class="batch-usage-summary">
+    <div><span>本批已匹配</span><strong>{{ batch_usage.matched }}<small>人</small></strong></div>
+    <div><span>本期有使用记录</span><strong>{{ batch_usage.used }}<small>人</small></strong></div>
+    <div><span>有教研活动</span><strong>{{ batch_usage.active }}<small>人</small></strong></div>
+    <div><span>仅有登录记录</span><strong>{{ batch_usage.login_only }}<small>人</small></strong></div>
+    <div><span>本期保存成果</span><strong>{{ batch_usage.materials }}<small>份</small></strong></div>
+  </div>
+  <p class="batch-table-caption">{% if filters.participants == 'all' %}全部已匹配老师{% else %}本期有使用记录的老师{% endif %} · 共 {{ batch_usage.rows|length }} 人 · 按正式名单序号排列</p>
+  <div class="batch-usage-scroll"><table class="batch-usage-table">
+    <caption class="visually-hidden">{{ batch.name }}教师使用记录，{{ filters.start|date:'Y-m-d' }}至{{ filters.end|date:'Y-m-d' }}</caption>
+    <thead><tr><th scope="col">名单序号</th><th scope="col">教师 / 学校</th><th scope="col">学科</th><th scope="col">教学设计</th><th scope="col">听评课</th><th scope="col">教研笔记</th><th scope="col">教研报告</th><th scope="col">交流提问</th><th scope="col">有记录天数</th><th scope="col">本期最近使用</th><th scope="col">记录情况</th></tr></thead>
+    <tbody>{% for row in batch_usage.rows %}<tr>
+      <td>{{ row.official_no }}</td><td><strong class="batch-teacher-name">{{ row.name }}</strong><small>{{ row.profile.school_name }}</small></td><td>{{ row.profile.subject }}</td>
+      <td>{{ row.counts.plans }}</td><td>{{ row.counts.reviews }}</td><td>{{ row.counts.notes }}</td><td>{{ row.counts.reports }}</td><td>{{ row.interactions }}</td><td>{{ row.day_count }}</td>
+      <td class="batch-use-date">{{ row.last_use|date:'m-d H:i'|default:'—' }}</td><td><span class="usage-status{% if not row.activities %} usage-status-muted{% endif %}">{{ row.usage_label }}</span></td>
+    </tr>{% empty %}<tr><td colspan="11" class="empty">{% if filters.participants == 'all' %}该批次当前没有符合筛选条件的已匹配老师{% else %}该批次当前没有符合筛选条件的使用记录，可切换查看全部已匹配老师{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="batch-usage-note">姓名、学校、学科以正式名单为准；名单外、未匹配账号不纳入，同一老师仅显示一次。交流提问包含社区提问、教师回答和向智能体提问，不含 AI 回复。有记录天数按日期去重；登录仅使用账号现存的最近一次登录时间，无法还原完整历史。暂无记录不代表未参训。</p>
+</section>

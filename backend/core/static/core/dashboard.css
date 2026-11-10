@@ -1677,3 +1677,74 @@ html[data-theme="dark"] .tables-grid .empty {
   color:#8ea4c4;
   padding:22px 12px;
 }
+
+/* Batch evidence uses the same confirmed identities as archive exports. */
+.batch-toolbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; background:var(--surface); border:1px solid var(--line); border-radius:8px; }
+.batch-toolbar label { display:flex; align-items:center; gap:7px; font-weight:600; }
+.batch-toolbar label .icon { color:var(--blue); }
+.batch-toolbar select { min-height:40px; min-width:220px; }
+.batch-toolbar-hint { color:var(--text); font-size:13px; }
+.batch-capture-button { margin-left:auto; padding:10px 16px; border:1px solid var(--blue); border-radius:6px; color:var(--blue); font-weight:600; }
+.batch-capture-button:hover { background:var(--background); }
+.batch-usage-panel { padding:20px; }
+.batch-usage-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:16px; }
+.batch-eyebrow { font-size:13px; color:var(--text); }
+.batch-usage-heading h2 { font-size:21px; margin-top:6px; }
+.batch-usage-controls { display:flex; align-items:center; gap:10px; font-size:13px; }
+.batch-usage-controls select { min-height:40px; }
+.batch-usage-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); background:var(--background); border:1px solid var(--line); border-radius:8px; padding:16px 4px; }
+.batch-usage-summary>div { padding:0 20px; border-right:1px solid var(--line); }
+.batch-usage-summary>div:last-child { border-right:0; }
+.batch-usage-summary span { display:block; color:var(--text); font-size:13px; margin-bottom:5px; }
+.batch-usage-summary strong { font-size:28px; line-height:1.2; font-variant-numeric:tabular-nums; }
+.batch-usage-summary small { font-size:12px; font-weight:400; color:var(--text); margin-left:6px; }
+.batch-table-caption { color:var(--text); font-size:13px; margin:18px 0 10px; }
+.batch-usage-scroll { overflow:auto; max-height:500px; border:1px solid var(--line); border-radius:6px; }
+.batch-usage-table { min-width:1050px; font-size:13px; color:var(--text); table-layout:fixed; font-variant-numeric:tabular-nums; }
+.batch-usage-table th { position:sticky; top:0; background:#edf4fd; color:#324d74; z-index:1; }
+.batch-usage-table th,.batch-usage-table td { padding:10px 8px; height:40px; text-align:center; border-bottom:1px solid var(--line); }
+.batch-usage-table th:first-child { width:64px; }
+.batch-usage-table th:nth-child(2) { width:19%; text-align:left; }
+.batch-usage-table td:nth-child(2) { text-align:left; }
+.batch-usage-table th:nth-child(3) { width:75px; }
+.batch-usage-table th:nth-child(10) { width:110px; }
+.batch-usage-table th:last-child { width:126px; }
+.batch-usage-table td small { display:block; margin-top:4px; color:var(--text); font-size:12px; }
+.batch-teacher-name { font-size:14px; color:var(--navy); }
+.batch-use-date { white-space:nowrap; }
+.usage-status { display:inline-block; background:#e8f4ff; color:#1761a5; font-size:12px; padding:5px 8px; border-radius:5px; }
+.usage-status-muted { background:#f0f2f5; color:#58667c; }
+.batch-usage-note { font-size:12px; line-height:1.8; color:var(--text); margin-top:12px; }
+.tables-grid.batch-latest-grid { grid-template-columns:1fr; }
+.visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+html[data-theme="dark"] .batch-usage-table th { background:#17355a; color:#d5e4f8; }
+html[data-theme="dark"] .batch-usage-table td { color:#d5e4f8; }
+html[data-theme="dark"] .batch-usage-table tbody tr:nth-child(even) { background:#123052; }
+html[data-theme="dark"] .batch-usage-table tbody tr:hover { background:#173b63; }
+html[data-theme="dark"] .usage-status { background:#153d60; color:#acdcff; }
+html[data-theme="dark"] .usage-status-muted { background:#26394c; color:#c5d3e4; }
+.capture-mode .sidebar,.capture-mode .header-actions,.capture-mode .metrics,.capture-mode .guidance-insights,
+.capture-mode .charts-grid,.capture-mode .tables-grid,.capture-mode .key-indicators,.capture-mode .data-footnote { display:none; }
+.capture-mode .dashboard { margin:0 auto; padding:20px 28px; max-width:1760px; }
+.capture-mode .dashboard-header { min-height:0; padding:8px 0 16px; background:none; }
+.capture-mode .heading h1 { font-size:30px; }
+.capture-mode .heading p { font-size:15px; }
+.capture-mode .batch-usage-scroll { max-height:none; }
+.capture-mode .batch-usage-table th { position:static; }
+.capture-mode .batch-usage-panel { padding:22px; }
+@media(max-width:900px) {
+  .batch-usage-heading { align-items:flex-start; flex-direction:column; }
+  .batch-toolbar-hint { flex-basis:100%; }
+  .batch-usage-summary { grid-template-columns:repeat(3,minmax(0,1fr)); row-gap:16px; }
+  .batch-usage-summary>div { padding:0 12px; }
+  .batch-usage-panel { padding:14px; }
+  .capture-mode .dashboard { padding:16px; }
+  .capture-mode .heading { min-width:0; }
+}
+@media print {
+  .capture-mode .batch-toolbar,.capture-mode .batch-usage-controls { display:none; }
+  .capture-mode .dashboard { padding:0; }
+  .capture-mode .batch-usage-scroll { overflow:visible; }
+  .capture-mode .batch-usage-table { min-width:0; font-size:10px; }
+  .capture-mode .batch-usage-table tr { break-inside:avoid; }
+}

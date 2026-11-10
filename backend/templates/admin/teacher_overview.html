@@ -8,39 +8,50 @@
   <script>
     try { if (localStorage.getItem('admin-theme') === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (error) {}
   </script>
-  <link rel="stylesheet" href="{% static 'core/dashboard.css' %}?v=7">
+  <link rel="stylesheet" href="{% static 'core/dashboard.css' %}?v=8">
   <link rel="stylesheet" href="{% static 'core/guidance.css' %}?v=5">
-  <script src="{% static 'core/dashboard.js' %}" defer></script>
+  <script src="{% static 'core/dashboard.js' %}?v=8" defer></script>
 </head>
-<body>
+<body{% if capture_mode %} class="capture-mode"{% endif %}>
 {% include "admin/dashboard_icons.html" %}
 <a class="skip-link" href="#dashboard-main">跳转到数据看板</a>
 {% include "admin/includes/shell_sidebar.html" %}
 <main class="dashboard" id="dashboard-main">
   <header class="dashboard-header">
-    <div class="heading"><h1>教学教研数据驾驶舱</h1><p>数据驱动教研发展 · 精准洞察教师成长 · 提升学校教学质量</p></div>
+    <div class="heading"><h1>{% if capture_mode %}{{ batch.name }}教师平台使用记录{% else %}教学教研数据驾驶舱{% endif %}</h1><p>{% if capture_mode %}{{ batch.export_name }}{% else %}数据驱动教研发展 · 精准洞察教师成长 · 提升学校教学质量{% endif %}</p></div>
     <div class="header-actions">
       <form class="filters" method="get" id="dashboard-filters">
         <div class="date-range"><svg class="icon"><use href="#icon-calendar"/></svg>
-          <input type="date" name="start" aria-label="开始日期" value="{{ filters.start|date:'Y-m-d' }}" required>
-          <span aria-hidden="true">→</span><input type="date" name="end" aria-label="结束日期" value="{{ filters.end|date:'Y-m-d' }}" required>
+          <input type="date" name="start" aria-label="开始日期" value="{{ filters.start|date:'Y-m-d' }}" {% if batch %}readonly{% endif %} required>
+          <span aria-hidden="true">→</span><input type="date" name="end" aria-label="结束日期" value="{{ filters.end|date:'Y-m-d' }}" {% if batch %}readonly{% endif %} required>
           <button type="submit" class="apply-filter" aria-label="应用日期筛选" title="应用日期筛选"><svg class="icon"><use href="#icon-apply"/></svg></button>
         </div>
         <select name="school" aria-label="筛选学校" data-submit><option value="">全校</option>{% if filters.school and filters.school not in schools %}<option value="{{ filters.school }}" selected>{{ filters.school }}</option>{% endif %}{% for school in schools %}<option value="{{ school }}" {% if filters.school == school %}selected{% endif %}>{{ school }}</option>{% endfor %}</select>
         <input type="hidden" name="trend" value="{{ filters.trend }}"><input type="hidden" name="kind" value="{{ filters.kind }}"><input type="hidden" name="ranking" value="{{ filters.ranking }}">
+        {% if capture_mode %}<input type="hidden" name="capture" value="1">{% endif %}
       </form>
       <a class="export-button" href="{{ export_url }}" title="导出当前筛选下的指标、全部教师、每日趋势及学科排行（CSV）"><svg class="icon"><use href="#icon-download"/></svg>导出报告</a>
       {% include "admin/includes/shell_user_menus.html" %}
     </div>
   </header>
   {% if error %}<div class="filter-error" role="alert">{{ error }} <a href="{% url 'teacher_overview' %}">重置筛选</a></div>{% endif %}
+  <section class="batch-toolbar" aria-label="研修批次筛选">
+    <label for="dashboard-batch"><svg class="icon"><use href="#icon-graduate"/></svg>研修批次</label>
+    <select id="dashboard-batch" name="batch" form="dashboard-filters" aria-label="选择研修批次" data-batch-submit>
+      <option value="">全部教师 / 自选日期</option>
+      {% for item in batches %}<option value="{{ item.pk }}" {% if batch.pk == item.pk %}selected{% endif %}>{{ item.name }} · {{ item.start_date|date:'m.d' }}—{{ item.end_date|date:'m.d' }}</option>{% endfor %}
+    </select>
+    <span class="batch-toolbar-hint">{% if batch %}{{ filters.start|date:'Y年m月d日' }}—{{ filters.end|date:'m月d日' }} · 仅统计正式名单已匹配老师{% else %}选择批次，查看正式名单中老师的本期使用记录{% endif %}</span>
+    {% if batch %}<a class="batch-capture-button" href="{% if capture_mode %}{{ normal_url }}{% else %}{{ capture_url }}{% endif %}">{% if capture_mode %}返回驾驶舱{% else %}截图展示{% endif %}</a>{% endif %}
+  </section>
   <section class="metrics" aria-label="教研数据指标">
     {% for metric in stats %}<article class="metric" data-metric="{{ metric.key }}" {% if metric.key == 'active' %}title="{{ activity_help }}"{% endif %}>
       <svg class="metric-icon {{ metric.color }}"><use href="#icon-{{ metric.icon }}"/></svg>
       <div class="metric-content"><div class="metric-label">{{ metric.label }}</div><div class="metric-numbers"><strong>{{ metric.value }}</strong><span class="delta {% if metric.delta > 0 %}positive{% elif metric.delta < 0 %}negative{% else %}neutral{% endif %}" title="{{ metric.comparison }}">{% if metric.delta > 0 %}↑ +{{ metric.delta }}{% elif metric.delta < 0 %}↓ {{ metric.delta }}{% else %}— 0{% endif %}</span></div><div class="metric-caption"><span>{{ metric.caption }}</span><span>{{ metric.comparison }}</span></div></div>
     </article>{% endfor %}
   </section>
-  {% include 'admin/includes/guidance_insights.html' %}
+  {% if batch %}{% include 'admin/includes/batch_usage.html' %}{% endif %}
+  {% if not batch %}{% include 'admin/includes/guidance_insights.html' %}{% endif %}
   <div class="charts-grid">
     <section class="panel trend-panel" aria-labelledby="trend-title">
       <div class="panel-heading"><h2 id="trend-title" class="accent-title">教师活跃趋势 <span id="trend-caption">（近{{ filters.trend }}天）</span></h2><select id="trend-range" aria-label="趋势时间范围"><option value="7" {% if filters.trend == 7 %}selected{% endif %}>近7天</option><option value="30" {% if filters.trend == 30 %}selected{% endif %}>近30天</option><option value="90" {% if filters.trend == 90 %}selected{% endif %}>近90天</option></select></div>
@@ -56,12 +67,14 @@
       <div class="subject-ranks">{% for subject in subjects|slice:':7' %}<div class="subject-row"><span title="{{ subject.name }}">{{ subject.name }}</span><div class="subject-track"><i style="width:{{ subject.bar }}%"></i></div><b>{{ subject.value }}</b></div>{% empty %}<div class="empty"><svg class="icon"><use href="#icon-bars"/></svg><p>所选范围暂无学科内容</p></div>{% endfor %}</div>
     </section>
   </div>
-  <div class="tables-grid">
+  <div class="tables-grid{% if batch %} batch-latest-grid{% endif %}">
+    {% if not batch %}
     <section class="panel teachers-panel" aria-labelledby="teachers-title"><div class="panel-heading"><h2 id="teachers-title"><svg class="title-icon"><use href="#icon-users"/></svg>教师活跃情况<span>（按内容数量）</span></h2><a class="subtle-link" href="{% url 'admin:core_teacherprofile_changelist' %}">全部教师</a></div>
       <div class="table-wrap"><table class="teacher-table"><thead><tr><th class="rank-col">#</th><th>教师姓名</th><th>学校 / 教研组</th><th>内容数量</th><th title="{{ activity_help }}">活跃天数</th><th>最近登录</th></tr></thead><tbody>
         {% for teacher in teacher_preview %}<tr><td class="rank-col">{% if forloop.counter <= 3 and teacher.count %}<span class="medal medal-{{ forloop.counter }}">{{ forloop.counter }}</span>{% else %}{{ forloop.counter }}{% endif %}</td><td><a class="teacher-name" href="{{ teacher.url }}" title="{{ teacher.name }}">{{ teacher.name }}</a></td><td><span class="school-name" title="{{ teacher.school }} / {{ teacher.department }}">{{ teacher.school|default:'未填写学校' }}</span></td><td><div class="count-bar"><b>{{ teacher.count }}</b><span><i style="width:{{ teacher.bar }}%"></i></span></div></td><td>{{ teacher.days }}</td><td class="last-login">{% if teacher.last_login %}{{ teacher.last_login|date:'Y-m-d H:i' }}{% else %}从未登录{% endif %}</td></tr>{% empty %}<tr><td colspan="6" class="empty">所选范围暂无教师</td></tr>{% endfor %}
       </tbody></table></div>
     </section>
+    {% endif %}
     <section class="panel latest-panel" aria-labelledby="latest-title"><div class="panel-heading"><h2 id="latest-title"><svg class="title-icon"><use href="#icon-bars"/></svg>最新教研内容动态</h2><select aria-label="筛选内容类型" data-filter="kind"><option value="all">全部</option>{% for type in content_types %}<option value="{{ type.key }}" {% if filters.kind == type.key %}selected{% endif %}>{{ type.name }}</option>{% endfor %}</select></div>
       <div class="table-wrap"><table class="latest-table"><thead><tr><th class="rank-col"></th><th>标题</th><th>类型</th><th>作者</th><th title="当前未采集内容浏览量">浏览量</th><th>发布时间</th></tr></thead><tbody>
         {% for item in latest %}<tr><td class="rank-col">{{ forloop.counter }}</td><td><a class="content-title" href="{{ item.url }}" title="{{ item.title }}">{{ item.title }}</a></td><td><span class="type-tag {{ item.kind }}">{{ item.label }}</span></td><td><span class="author-name" title="{{ item.author }}">{{ item.author }}</span></td><td class="untracked" title="当前未采集浏览量">—</td><td class="published">{{ item.created_at|date:'m-d H:i' }}</td></tr>{% empty %}<tr><td colspan="6" class="empty">所选范围暂无教研内容</td></tr>{% endfor %}
@@ -75,7 +88,7 @@
     <article class="key-item"><span class="key-icon"><svg><use href="#icon-bars"/></svg></span><div><span>学科覆盖</span><p><strong>{{ subject_count }}</strong> 个</p><small>涉及学科</small></div><div class="mini-bars" data-series="subjects" aria-hidden="true"></div></article>
     <article class="key-item value-item"><span class="key-icon"><svg><use href="#icon-shield"/></svg></span><div><span>平台价值</span><p><b>提升教学质量</b></p><small>数据驱动 · 精准决策</small></div><svg class="value-art" viewBox="0 0 100 70" aria-hidden="true"><defs><linearGradient id="value-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#1480ff" stop-opacity=".28"/><stop offset="1" stop-color="#1480ff" stop-opacity="0"/></linearGradient></defs><path d="M2 65 21 46 34 51 53 29 65 36 93 4V70H2Z" fill="url(#value-fill)"/><path d="M2 65 21 46 34 51 53 29 65 36 93 4" fill="none" stroke="#1684ff" stroke-width="3"/><path d="m82 5 13-3-1 13" fill="#1684ff"/></svg></article>
   </section>
-  <footer class="data-footnote"><details><summary>统计口径与数据说明</summary><p>内容数量、结构、排行及教师内容数均按所选日期和学校统计；“较上期”为此前等长日期范围的数量差。教师总人数为截至结束日期的非后台工作人员人数。学校及报告学科取教师当前档案，其他内容优先使用记录中的学科。{{ activity_help }} 最近登录展示当前账号记录；浏览量暂未采集，以“—”表示。</p></details><span>{{ filters.start|date:'Y.m.d' }} — {{ filters.end|date:'Y.m.d' }} · {{ filters.school|default:'全校' }}</span></footer>
+  <footer class="data-footnote"><details><summary>统计口径与数据说明</summary><p>内容数量、结构、排行及教师内容数均按所选日期和学校统计；“较上期”为此前等长日期范围的数量差。{% if batch %}教师人数为本批正式名单中已匹配的非后台账号数，姓名、学校、学科以正式名单为准。{% else %}教师总人数为截至结束日期的非后台工作人员人数。学校及报告学科取教师当前档案，其他内容优先使用记录中的学科。{% endif %}{{ activity_help }} 最近登录展示当前账号记录；浏览量暂未采集，以“—”表示。</p></details><span>{% if batch %}{{ batch.name }} · {% endif %}{{ filters.start|date:'Y.m.d' }} — {{ filters.end|date:'Y.m.d' }} · {{ filters.school|default:'全校' }}</span></footer>
 </main>
 {{ series|json_script:"dashboard-series" }}
 {{ subjects|json_script:"dashboard-subjects" }}

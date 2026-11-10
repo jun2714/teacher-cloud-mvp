@@ -8,6 +8,11 @@
   const form = document.querySelector('#dashboard-filters');
   const series = JSON.parse(document.getElementById('dashboard-series').textContent);
   const subjects = JSON.parse(document.getElementById('dashboard-subjects').textContent);
+  document.querySelector('[data-batch-submit]')?.addEventListener('change', event => {
+    form.elements.school.value = '';
+    if (!event.target.value && form.elements.capture) form.elements.capture.disabled = true;
+    form.requestSubmit();
+  });
   document.querySelectorAll('[data-submit]').forEach(select => select.addEventListener('change', () => form.requestSubmit()));
   document.querySelectorAll('[data-filter]').forEach(select => select.addEventListener('change', () => {
     form.elements[select.dataset.filter].value = select.value;

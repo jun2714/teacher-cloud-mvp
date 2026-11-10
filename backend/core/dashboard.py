@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from community.models import Answer, Question
 from learning.models import AssistantMessage, LessonPlan, LessonReview, ResearchNote, ResearchReport
-from .models import TeacherProfile
+from .models import TeacherProfile, TrainingBatch
 
 CONTENT = (
     ("plans", "教学设计", LessonPlan, "#8448ff", "document"),
@@ -50,6 +50,29 @@ class DashboardFilters(forms.Form):
         return data
 
 
+class CockpitFilters(DashboardFilters):
+    batch = forms.ModelChoiceField(queryset=TrainingBatch.objects.exclude(official_roster=[]).filter(confirmed_at__isnull=False), required=False)
+    participants = forms.ChoiceField(required=False, choices=[('used', '本期有使用记录'), ('all', '全部已匹配老师')])
+    capture = forms.ChoiceField(required=False, choices=[('1', '截图展示')])
+
+    def __init__(self, data=None, *args, **kwargs):
+        # A batch owns its exact date interval. Old date inputs must not leak into it.
+        if data is not None:
+            data = data.copy()
+            batch_id = str(data.get('batch') or '')
+            batch = self.base_fields['batch'].queryset.filter(pk=batch_id).first() if batch_id.isdigit() else None
+            if batch:
+                data['start'], data['end'] = batch.start_date.isoformat(), batch.end_date.isoformat()
+        super().__init__(data, *args, **kwargs)
+
+    def clean(self):
+        data = super().clean()
+        data['participants'] = data.get('participants') or 'used'
+        if data.get('capture') and not data.get('batch'):
+            raise forms.ValidationError('请先选择研修批次，再打开截图展示。')
+        return data
+
+
 def midnight(day):
     return timezone.make_aware(datetime.combine(day, time.min))
 
@@ -63,13 +86,27 @@ def build_dashboard(filters, teacher_id=None):
     previous_recent = recent_start - timedelta(days=recent_length)
     history_start = min(previous_start, previous_recent)
     end_time = midnight(end + timedelta(days=1))
-    profiles = TeacherProfile.objects.filter(user__is_staff=False, user__date_joined__lt=end_time).select_related("user")
-    schools = list(profiles.exclude(school_name="").order_by("school_name").values_list("school_name", flat=True).distinct())
-    if filters.get("school"):
+    batch = filters.get('batch')
+    identities = {r['profile_id']: r for r in batch.official_roster
+                  if r.get('profile_id') and r.get('status') == '已匹配'} if batch else {}
+    profiles = TeacherProfile.objects.filter(user__is_staff=False).select_related("user")
+    if batch:
+        profiles = profiles.filter(pk__in=identities)
+        schools = sorted({r['school'] for r in identities.values()})
+        if filters.get('school'):
+            profiles = profiles.filter(pk__in=[pk for pk, r in identities.items() if r['school'] == filters['school']])
+    else:
+        profiles = profiles.filter(user__date_joined__lt=end_time)
+        schools = list(profiles.exclude(school_name="").order_by("school_name").values_list("school_name", flat=True).distinct())
+    if filters.get("school") and not batch:
         profiles = profiles.filter(school_name=filters["school"])
     if teacher_id is not None:
         profiles = profiles.filter(user_id=teacher_id)
     teachers = {p.user_id: p for p in profiles}
+    for p in teachers.values():
+        if p.pk in identities:
+            identity = identities[p.pk]
+            p.user.first_name, p.school_name, p.subject = identity['name'], identity['school'], identity['subject']
     activity = defaultdict(set)
     published = Counter()
     teacher_counts, teacher_days = Counter(), defaultdict(set)
@@ -90,7 +127,7 @@ def build_dashboard(filters, teacher_id=None):
                 totals[key] += n
                 published[day] += n
                 teacher_counts[user_id] += n
-                subject = (row.get("subject") or teachers[user_id].subject or "未填写").strip() or "未填写"
+                subject = (teachers[user_id].subject if batch else row.get("subject") or teachers[user_id].subject or "未填写").strip() or "未填写"
                 subject_counts[subject] += n
                 subject_teachers[subject].add(user_id)
                 if day >= recent_start:
@@ -98,7 +135,7 @@ def build_dashboard(filters, teacher_id=None):
         if filters["kind"] in ("all", key):
             for record in queryset.filter(created_at__gte=midnight(start)).select_related("author").only("id", "title", "created_at", "author__first_name", "author__username").order_by("-created_at", "-pk")[:10]:
                 latest.append({"title": record.title, "kind": key, "label": label,
-                               "author": record.author.first_name or record.author.username,
+                               "author": teachers[record.author_id].user.first_name or teachers[record.author_id].user.username,
                                "created_at": record.created_at, "url": reverse(f"admin:learning_{model._meta.model_name}_change", args=[record.pk])})
     # New messages count continued use of an existing conversation as well.
     for model, author, extra in ((Question, "author_id", {}), (Answer, "author_id", {"answer_type": "teacher"}),
@@ -120,8 +157,8 @@ def build_dashboard(filters, teacher_id=None):
     participation = round(len(current_active) / len(teachers) * 100, 1) if teachers else 0
     stats = [
         {"key": "teachers", "label": "教师总人数", "value": len(teachers), "icon": "users", "color": "blue",
-         "delta": sum(timezone.localtime(p.user.date_joined).date() >= start for p in teachers.values()),
-         "caption": "所选学校教师", "comparison": "选期新增"},
+         "delta": sum(start <= timezone.localtime(p.user.date_joined).date() <= end for p in teachers.values()),
+         "caption": "本批已匹配教师" if batch else "所选学校教师", "comparison": "选期新增"},
         {"key": "active", "label": f"近{recent_length}天活跃教师", "value": len(current_active), "icon": "bars", "color": "teal",
          "delta": len(current_active) - len(prior_active), "caption": f"{participation}% 活跃率", "comparison": "较前期"},
     ]
@@ -151,9 +188,24 @@ def build_dashboard(filters, teacher_id=None):
         percent = totals[key] / total * 100 if total else 0
         segments.append({"name": spec[1], "count": totals[key], "percent": round(percent, 1), "length": percent, "offset": -offset, "color": spec[3]})
         offset += percent
+    batch_usage = None
+    if batch:
+        from .batch_roster import roster_evidence
+        rows = roster_evidence(start, end, filters.get('school', ''), batch)
+        if teacher_id is not None:
+            rows = [r for r in rows if r['profile'].user_id == teacher_id]
+        for row in rows:
+            row['interactions'] = row['activities'] - row['materials']
+            row['usage_label'] = '有教研记录' if row['activities'] else '仅有登录记录' if row['login_in_period'] else '暂无使用记录'
+        used = [r for r in rows if r['used']]
+        batch_usage = {'rows': rows if filters.get('participants') == 'all' else used,
+                       'matched': len(rows), 'used': len(used), 'active': sum(bool(r['activities']) for r in rows),
+                       'login_only': sum(r['login_in_period'] and not r['activities'] for r in rows),
+                       'materials': sum(r['materials'] for r in rows), 'inactive': len(rows) - len(used)}
     return {"stats": stats, "teachers": teacher_rows, "teacher_preview": teacher_rows[:10], "subjects": subjects,
             "latest": sorted(latest, key=lambda r: r["created_at"], reverse=True)[:10], "series": series,
             "segments": segments, "total": total, "schools": schools, "filters": filters,
             "participation": participation, "active_count": len(current_active), "recent_length": recent_length,
             "subject_count": len(subjects), "activity_help": ACTIVITY_HELP,
+            "batch": batch, "batch_usage": batch_usage,
             "content_types": [{"key": c[0], "name": c[1]} for c in CONTENT]}

@@ -9,6 +9,7 @@ from django.utils import timezone
 from community.models import Answer, Question
 from learning.models import AssistantChat, AssistantMessage, LessonPlan, LessonReview, ResearchNote, ResearchReport
 from .dashboard import PERMISSIONS
+from .models import TrainingBatch
 
 
 class DashboardTests(TestCase):
@@ -176,3 +177,78 @@ class DashboardTests(TestCase):
         self.assertNotContains(response, '<img src=x')
         self.assertContains(response, 'id="dashboard-series" type="application/json"')
         self.assertContains(response, "当前未采集浏览量")
+
+    def official_batch(self, **extra):
+        batch, _ = TrainingBatch.objects.update_or_create(name='第二批', start_date=date(2026, 10, 18), end_date=date(2026, 10, 24),
+            defaults=dict(confirmed_at=timezone.now(), official_roster=[
+                {'no': 1, 'name': '名单姓名', 'school': '名单学校', 'subject': '物理',
+                 'profile_id': self.alice.teacher_profile.pk, 'status': '已匹配'},
+                {'no': 2, 'name': '未匹配姓名', 'school': '名单学校', 'subject': '物理',
+                 'profile_id': None, 'status': '未匹配账号'},
+            ], **extra))
+        return batch
+
+    def test_batch_owns_dates_official_identities_and_all_statistics(self):
+        batch = self.official_batch()
+        response = self.overview(batch=batch.pk, start='2026-09-01', end='2026-11-01')
+        c = response.context
+        self.assertEqual((c['filters']['start'], c['filters']['end']), (batch.start_date, batch.end_date))
+        self.assertEqual(c['total'], 5)
+        self.assertEqual(len(c['series']), 7)
+        self.assertEqual(c['schools'], ['名单学校'])
+        self.assertEqual([r['name'] for r in c['teachers']], ['名单姓名'])
+        self.assertEqual({r['author'] for r in c['latest']}, {'名单姓名'})
+        self.assertEqual(c['subjects'][0]['name'], '物理')
+        self.assertEqual(c['batch_usage']['used'], 1)
+        self.assertEqual(c['batch_usage']['rows'][0]['counts']['plans'], 2)
+        self.assertEqual(c['batch_usage']['rows'][0]['interactions'], 1)
+        self.assertEqual(c['batch_usage']['rows'][0]['day_count'], 4)
+        self.assertNotContains(response, '李老师')
+        self.assertNotContains(response, '未匹配姓名')
+        self.alice.refresh_from_db()
+        self.assertEqual(self.alice.first_name, '张老师')
+        school = self.overview(batch=batch.pk, school='名单学校').context
+        self.assertEqual(school['total'], 5)
+        self.assertEqual(self.overview(batch=batch.pk, school='甲校').context['total'], 0)
+
+    def test_batch_usage_distinguishes_login_only_empty_and_later_login(self):
+        batch = self.official_batch()
+        for index, login in enumerate(['2026-10-23', '2026-10-28', None], 3):
+            user = User.objects.create_user(f'extra_{index}', first_name=f'原名{index}')
+            User.objects.filter(pk=user.pk).update(date_joined=self.when('2026-09-01'), last_login=self.when(login) if login else None)
+            batch.official_roster.append({'no': index, 'name': f'名单{index}', 'school': '名单学校', 'subject': '物理',
+                                         'profile_id': user.teacher_profile.pk, 'status': '已匹配'})
+        batch.save()
+        used = self.overview(batch=batch.pk).context['batch_usage']
+        self.assertEqual((used['matched'], used['used'], used['active'], used['login_only']), (4, 2, 1, 1))
+        self.assertEqual([r['name'] for r in used['rows']], ['名单姓名', '名单3'])
+        self.assertEqual(used['rows'][1]['usage_label'], '仅有登录记录')
+        all_rows = self.overview(batch=batch.pk, participants='all').context['batch_usage']['rows']
+        self.assertEqual(len(all_rows), 4)
+        self.assertIsNone(all_rows[2]['last_use'])
+        self.assertEqual(all_rows[2]['usage_label'], '暂无使用记录')
+
+    def test_capture_and_export_keep_batch_scope_and_escaping(self):
+        batch = self.official_batch()
+        response = self.overview(batch=batch.pk, capture='1')
+        self.assertContains(response, 'class="capture-mode"')
+        self.assertContains(response, '第二批教师平台使用记录')
+        self.assertIn(f'batch={batch.pk}', response.context['normal_url'])
+        response = self.client.get('/admin/overview/export/', {'batch': batch.pk})
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode('utf-8-sig')
+        self.assertIn('名单姓名', body)
+        self.assertIn('第二批', body)
+        self.assertNotIn('李老师', body)
+        batch.official_roster[0]['name'] = '<script>bad()</script>'
+        batch.save()
+        response = self.overview(batch=batch.pk)
+        self.assertContains(response, '&lt;script&gt;')
+        self.assertNotContains(response, '<script>bad()')
+
+    def test_invalid_or_unconfirmed_batch_cannot_silently_show_all_teachers(self):
+        unconfirmed = TrainingBatch.objects.create(name='未确认批次', start_date=date(2026, 10, 18), end_date=date(2026, 10, 24))
+        for params in ({'batch': 'bad'}, {'batch': 999999}, {'batch': unconfirmed.pk}, {'capture': '1'}, {'participants': 'bad'}):
+            for endpoint in ('/admin/overview/', '/admin/overview/export/'):
+                response = self.client.get(endpoint, params)
+                self.assertEqual(response.status_code, 400)

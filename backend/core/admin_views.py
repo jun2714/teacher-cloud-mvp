@@ -15,8 +15,8 @@ from django.contrib.auth.models import Group, User
 
 from community.models import Answer, Question
 from learning.models import AssistantChat, AssistantMessage, LessonPlan, LessonReview, ResearchNote, ResearchReport
-from .dashboard import DashboardFilters, PERMISSIONS, build_dashboard
-from .models import InAppNotice, TeacherProfile
+from .dashboard import DashboardFilters, CockpitFilters, PERMISSIONS, build_dashboard
+from .models import InAppNotice, TeacherProfile, TrainingBatch
 
 
 PAGE_DESCRIPTIONS = {
@@ -107,7 +107,7 @@ def admin_landing(request):
 def dashboard_context(request):
     if not request.user.has_perms(PERMISSIONS):
         raise PermissionDenied("查看驾驶舱需要教师档案及相关教研记录的查看权限。")
-    form = DashboardFilters(request.GET)
+    form = CockpitFilters(request.GET)
     if not form.is_valid():
         return None, "；".join(str(message) for messages in form.errors.values() for message in messages)
     return build_dashboard(form.cleaned_data), ""
@@ -128,6 +128,13 @@ def teacher_overview(request):
                     "export_url": reverse("teacher_overview_export") + "?" + request.GET.urlencode()})
     from .guidance import guidance_evidence
     context["guidance"] = guidance_evidence(request.user, context)
+    params = request.GET.copy()
+    params.pop('capture', None)
+    context['normal_url'] = reverse('teacher_overview') + '?' + params.urlencode()
+    params['capture'] = '1'
+    context['capture_url'] = reverse('teacher_overview') + '?' + params.urlencode()
+    context['capture_mode'] = context['filters'].get('capture') == '1' and not error
+    context['batches'] = TrainingBatch.objects.exclude(official_roster=[]).filter(confirmed_at__isnull=False).order_by('start_date', 'pk')
     return render(request, "admin/teacher_overview.html", context, status=400 if error else 200)
 
 
@@ -146,6 +153,8 @@ def teacher_overview_export(request):
 
     f = context["filters"]
     row(["教学教研数据驾驶舱", f["start"].isoformat(), f["end"].isoformat(), f.get("school") or "全校"])
+    if context.get('batch'):
+        row(['研修批次', context['batch'].export_name, '姓名、学校、学科以正式名单为准；仅统计本批已匹配账号。'])
     row(["统计口径", "教师人数为截止日人数；内容统计按所选日期；较上期为此前等长时段差值。"])
     row(["活跃口径", context["activity_help"]])
     row(["指标", "数量", "增减", "比较方式"])
