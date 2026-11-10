@@ -77,7 +77,7 @@ class OfficialRosterTests(TestCase):
     def test_each_teacher_gets_complete_achievements_and_only_own_alias_is_replaced(self):
         self.note.content = '**教师姓名**：1234_用户\n\n历史姓名：1234\\_用户\n\n完整原文，保留另一位 9999_用户 的引用。'
         self.note.save()
-        ResearchNote.objects.create(author=self.teacher, title='另一篇成果', content='另一个成果的完整末尾。')
+        ResearchNote.objects.create(author=self.teacher, title='另一篇成果 + 教学-评价<反思>', content='另一个成果的完整末尾。')
         response = self.client.post(reverse('archive_center'), self.payload)
         with ZipFile(BytesIO(payload_bytes(response))) as z:
             achievements = [n for n in z.namelist() if n.startswith('学员研修成果/')]
@@ -88,6 +88,7 @@ class OfficialRosterTests(TestCase):
             self.assertNotIn('1234_用户', body)
             self.assertIn('9999_用户', body)
             self.assertIn('另一个成果的完整末尾。', body)
+            self.assertIn('教研笔记 · 另一篇成果 + 教学-评价<反思>', body)
             self.assertNotIn('范围之外资料', body)
             self.assertNotIn('不确定账号资料', body)
             self.assertFalse(any('未注册老师' in n for n in z.namelist()))

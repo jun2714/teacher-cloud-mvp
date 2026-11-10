@@ -127,14 +127,17 @@ def teacher_achievements(profile, data, groups):
                 value = getattr(obj, field, '')
                 if value:
                     meta += f'{caption}：{text(value)}\n\n'
-            documents.append((f'{label} · {text(obj.title)}', meta + (body or '尚未填写正文，待补充。')))
+            # Heading text is literal in the Word renderer; escaping Markdown
+            # punctuation here would expose backslashes in printed titles.
+            title = obj.title.replace('\n', ' ').replace('\r', ' ')
+            documents.append((f'{label} · {title}', meta + (body or '尚未填写正文，待补充。')))
     introduction += '## 本期成果概况\n\n' + table(['成果类型', '保存份数', '有正文份数'], summary)
     if not documents:
         introduction += '## 资料待补充\n\n本批次日期内暂未查到该教师所选类型的已保存成果。本文件仅作材料核对记录，不代表已提交成果，也不据此判断是否参训。\n\n'
     else:
         introduction += ('以下按功能类型和创建时间收录本期保存的完整材料，每份材料另起一页。'
                          '教师默认用户名按正式名单统一为本人姓名，其余正文保留；教学设想与个人观点仍需教师核对。\n\n')
-    return collected_documents(text(name) + '学员研修成果', introduction, documents)
+    return collected_documents(name.replace('\n', ' ') + '学员研修成果', introduction, documents)
 
 
 class ExportActionsMixin:
