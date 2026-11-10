@@ -1,25 +1,44 @@
 {% extends 'admin/guidance_base.html' %}
 {% block guidance_content %}
+<section class="guidance-section"><h2>按研修批次归档</h2><nav class="archive-batches" aria-label="研修批次选择">{% for batch in batches %}<a href="?batch={{ batch.pk }}" class="archive-batch{% if selected_batch.pk == batch.pk %} selected{% endif %}" {% if selected_batch.pk == batch.pk %}aria-current="page"{% endif %}><strong>{{ batch.name }}</strong><span>{{ batch.start_date|date:'Y.m.d' }} — {{ batch.end_date|date:'m.d' }}</span><small>{% if batch.confirmed_at %}已确认 {{ batch.teacher_count }} 位教师{% else %}待核对教师名单{% endif %}</small></a>{% endfor %}</nav><p class="guidance-caption">先根据注册与使用时间查找老师，核对并保存该批名单，再导出本阶段内容。跨批使用的老师会显示其他批次线索。</p></section>
 <section class="guidance-section archive-intro"><h2>研修报告与资料归档</h2><p class="evidence-note">选择实际参训教师和日期，整理过程数据、成果原文，并生成批次分析、研修总结或教师个人报告。单份直接下载，多份打包 ZIP；Word 可继续编辑，CSV 可用 Excel 打开。</p>
 <div class="archive-purpose"><article><strong>本批次学情分析</strong><p>分析参训教师的基础信息、参与情况、学习关注点和指导需求。</p></article><article><strong>本批次研修总结</strong><p>梳理实际研修过程、成果材料、具体问题及后续改进安排。</p></article><article><strong>教师个人教研报告</strong><p>综合该教师的笔记、教学设计、听评课、已有报告和提问，形成有来源的报告。</p></article></div>
 <p class="guidance-caption">报告根据已保存材料自动整理，含内容节选、来源编号和行动建议，建议核对后使用。一次最多 100 位教师、5000 条过程记录；成果原文最多 500 份。</p></section>
 <form method="post" class="archive-form" id="archive-form">{% csrf_token %}
+{{ form.batch_revision }}
 {% if form.errors %}<div class="guidance-error" role="alert"><strong>请检查导出条件</strong>{{ form.non_field_errors }}{% for field in form %}{% for error in field.errors %}<p>{{ field.label }}：{{ error }}</p>{% endfor %}{% endfor %}</div>{% endif %}
-<section class="guidance-section"><h2>1 选择批次与日期</h2><div class="archive-fields">{% for field in form %}{% if field.name == 'batch_name' or field.name == 'start' or field.name == 'end' or field.name == 'school' or field.name == 'achievement' or field.name == 'scope' %}<label for="{{ field.id_for_label }}">{{ field.label }}{{ field }}{% for error in field.errors %}<span class="guidance-error">{{ error }}</span>{% endfor %}</label>{% endif %}{% endfor %}</div><p class="guidance-caption">日期以资料创建时间为准，含首尾日期。请勾选实际参训教师组成此批次，人数以选择结果为准。学校筛选会在提交时再次校验。</p></section>
+<section class="guidance-section"><h2>1 选择批次与日期</h2><div class="archive-fields">{% for field in form %}{% if field.name == 'batch' or field.name == 'batch_name' or field.name == 'start' or field.name == 'end' or field.name == 'school' or field.name == 'achievement' or field.name == 'scope' %}<label for="{{ field.id_for_label }}">{{ field.label }}{{ field }}{% for error in field.errors %}<span class="guidance-error">{{ error }}</span>{% endfor %}</label>{% endif %}{% endfor %}</div><div class="guidance-actions"><button type="submit" name="action" value="find_teachers" formnovalidate class="guidance-btn primary">按时间查询教师</button></div><p class="guidance-caption">四个批次已配置起止日期，含首尾日期。选择“自定义时间段”可自行查询。注册或本期使用任一条件符合即列为候选，先注册后使用的老师也能查到。</p></section>
 <section class="guidance-section"><h2>2 选择资料类别</h2><div class="archive-choices">{{ form.categories }}</div><p class="guidance-caption">成果原文也可在教学设计、听评课、教研笔记、教研报告列表勾选具体记录，使用“导出所选资料 Word”。详情页可单条下载。</p></section>
-<section class="guidance-section"><div class="guidance-section-heading"><h2>3 勾选教师</h2><div class="guidance-actions"><button type="button" class="guidance-btn" id="archive-select-all">全选教师</button><button type="button" class="guidance-btn" id="archive-clear">清空选择</button><span id="archive-count" role="status"></span></div></div><p class="guidance-caption">范围选“勾选教师”时此处必选；选“当前学校全部教师”时按学校及日期范围导出，学校留空表示全部学校。</p><div class="archive-teachers">{{ form.teacher_ids }}</div></section>
+{% include 'admin/includes/archive_roster.html' %}
 <details class="guidance-section archive-supplement" {% if form.errors %}open{% endif %}><summary>4 补充培训信息与任务要求（选填）</summary><p class="guidance-caption">按实际培训安排填写。未设置份数时不计算完成率；空白或 0 表示不要求该项。数量达标不等于质量审核通过。</p><div class="archive-fields">{% for field in form %}{% if field.name == 'training_context' or field.name == 'implementation_notes' or field.name == 'target_plans' or field.name == 'target_reviews' or field.name == 'target_notes' or field.name == 'target_reports' %}<label for="{{ field.id_for_label }}">{{ field.label }}{{ field }}{% for error in field.errors %}<span class="guidance-error">{{ error }}</span>{% endfor %}</label>{% endif %}{% endfor %}</div></details>
 <section class="guidance-section"><div class="guidance-actions"><button type="submit" class="guidance-btn" name="action" value="preview">预览报告</button><button type="submit" class="guidance-btn primary" name="action" value="download">导出所选资料</button></div><p class="guidance-caption" id="archive-status" role="status">建议先预览报告；预览中可以逐份下载，也可返回调整条件。导出不修改教师原记录。</p></section>
 </form>
 <script>
 (() => {
   const boxes = () => [...document.querySelectorAll('input[name="teacher_ids"]')];
-  const update = () => document.querySelector('#archive-count').textContent = `已选 ${boxes().filter(b => b.checked).length} 位`;
-  document.querySelector('#archive-select-all').addEventListener('click', () => { boxes().forEach(b => b.checked = true); update(); });
-  document.querySelector('#archive-clear').addEventListener('click', () => { boxes().forEach(b => b.checked = false); update(); });
-  boxes().forEach(b => b.addEventListener('change', update)); update();
+  const scope = document.querySelector('[name="scope"]');
+  const update = () => document.querySelector('#archive-count').textContent = `已勾选 ${boxes().filter(b => b.checked).length} 位`;
+  const manual = () => { scope.value = 'selected'; update(); };
+  document.querySelector('#archive-select-all').addEventListener('click', () => { boxes().filter(b => !b.closest('tr').hidden).forEach(b => b.checked = true); manual(); });
+  document.querySelector('#archive-clear').addEventListener('click', () => { boxes().forEach(b => b.checked = false); manual(); });
+  boxes().forEach(b => b.addEventListener('change', manual)); update();
+  const filter = document.querySelector('#roster-filter');
+  const filterRows = () => {
+    const rows = [...document.querySelectorAll('.archive-roster tbody tr[data-candidate]')];
+    rows.forEach(row => {
+      const selectedCandidate = filter.value === 'candidate' && row.querySelector('input').checked;
+      row.hidden = filter.value !== 'all' && row.dataset[filter.value] !== '1' && !selectedCandidate;
+    });
+    document.querySelector('#roster-filter-empty').hidden = !rows.length || rows.some(row => !row.hidden);
+  };
+  filter.addEventListener('change', filterRows);
+  document.querySelector('[name="batch"]').addEventListener('change', event => {
+    window.location.href = '?batch=' + encodeURIComponent(event.target.value);
+  });
+  filterRows();
   document.querySelector('#archive-form').addEventListener('submit', event => {
-    document.querySelector('#archive-status').textContent = event.submitter?.value === 'preview' ? '正在整理报告，请稍候…' : '正在准备下载，多份 Word 需要一些时间，请勿重复点击。完成后请查看浏览器下载列表。';
+    const states = {preview: '正在整理报告，请稍候…', find_teachers: '正在按时间查询教师…', save_roster: '正在保存已核对名单…'};
+    document.querySelector('#archive-status').textContent = states[event.submitter?.value] || '正在准备下载，多份 Word 需要一些时间，请勿重复点击。完成后请查看浏览器下载列表。';
   });
 })();
 </script>

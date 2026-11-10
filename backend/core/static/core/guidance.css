@@ -1,4 +1,25 @@
 :root { --guidance-soft:#f0f6ff; --guidance-ink:#243a59; --guidance-muted:#61748f; --guidance-amber:#a46413; }
+.archive-batches { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:20px 0; }
+.archive-batch { display:grid; gap:8px; padding:20px; border:1px solid var(--line); border-radius:10px; color:var(--guidance-ink)!important; background:var(--surface); }
+.archive-batch strong { font-size:18px; }.archive-batch span { font-size:14px; }.archive-batch small { color:var(--guidance-muted); font-size:12px; }
+.archive-batch.selected { border-color:var(--blue); box-shadow:inset 0 0 0 1px var(--blue); background:var(--guidance-soft); }
+.archive-roster-stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:22px 0; }
+.archive-roster-stats>div { border:1px solid var(--line); padding:16px; border-radius:8px; display:grid; gap:8px; }
+.archive-roster-stats strong { font-size:25px; color:var(--navy); }.archive-roster-stats span { font-size:13px; color:var(--guidance-muted); }
+.archive-roster-tools { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:20px 0 12px; }
+.archive-roster-tools label { display:grid; gap:8px; color:var(--guidance-ink); font-size:14px; }
+.archive-roster-tools select { min-height:44px; border:1px solid var(--line); border-radius:6px; padding:8px; background:var(--surface); color:var(--guidance-ink); }
+.archive-roster-scroll { max-width:100%; max-height:640px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+.modern-reading-page .archive-roster { width:100%; min-width:1150px; table-layout:auto!important; }
+.modern-reading-page .archive-roster th,.modern-reading-page .archive-roster td { padding:14px; text-align:left; height:auto; color:var(--guidance-ink); border-bottom:1px solid var(--line); line-height:1.7; font-size:13px; }
+.modern-reading-page .archive-roster th { position:sticky; top:0; background:var(--guidance-soft); z-index:1; }
+.modern-reading-page .archive-roster tbody td { background:var(--surface); }
+.modern-reading-page .archive-roster tbody tr:nth-child(even) td,.modern-reading-page .archive-roster tbody tr:hover td { background:var(--guidance-soft); }
+.archive-roster td small { display:block; color:var(--guidance-muted); font-size:12px; }.archive-roster .guidance-status { white-space:normal; }
+.archive-roster td .roster-attention { color:var(--guidance-amber); }.archive-roster-save { margin-top:20px; }
+.archive-roster tr[hidden] { display:none!important; }
+@media(max-width:1000px) { .archive-batches { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:600px) { .archive-batches,.archive-roster-stats { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }.archive-batch { padding:14px; }.archive-batch span { font-size:12px; } }
 .archive-form { display:grid; gap:18px; margin-top:18px; }
 .archive-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin:20px 0; }
 .archive-fields label { display:grid; gap:8px; font-size:14px; color:var(--guidance-ink); }

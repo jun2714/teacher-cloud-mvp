@@ -80,7 +80,8 @@ class TrainingEvidence:
 
     def for_teacher(self, profile):
         uid = profile.user_id
-        one = TrainingEvidence({**self.data, 'profiles': [profile]},
+        one = TrainingEvidence({**self.data, 'profiles': [profile],
+                                'roster_rows': [r for r in self.data.get('roster_rows', []) if r['profile'].user_id == uid]},
                                 {k: [r for r in rows if r.author_id == uid] for k, rows in self.groups.items()},
                                 [r for r in self.process if r[0] == uid], {r for r in self.active if r[0] == uid},
                                 [q for q in self.questions if q.author_id == uid],
@@ -128,6 +129,12 @@ class TrainingEvidence:
     def intro(self, purpose):
         body = f'培训批次：{text(self.data["batch_name"])}\n\n统计期间：{self.data["start"]} 至 {self.data["end"]}（含首尾日期）\n\n'
         body += f'报告生成时间：{self.captured_at}\n\n{purpose}\n\n'
+        if self.data.get('roster_source'):
+            body += '教师范围：' + text(self.data['roster_source']) + '。只纳入这些教师在上述期间创建的内容。\n\n'
+        if self.data.get('roster_rows'):
+            roster = self.data['roster_rows']
+            body += f'所选教师中，本期注册 {sum(r["registered"] for r in roster)} 人，有本期使用证据 {sum(r["used"] for r in roster)} 人（两项可重叠）。\n\n'
+            body += '注册和使用时间仅为名单核对依据。使用证据包含保存内容及落在本期的最近一次登录；历史登录记录不完整，不能据此推断完整出勤。\n\n'
         if self.data.get('training_context'):
             body += '培训安排与目标（管理员补充）：' + text(self.data['training_context']) + '\n\n'
         if self.data.get('implementation_notes'):

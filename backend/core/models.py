@@ -20,6 +20,32 @@ class TeacherProfile(models.Model):
         return f"{self.user.username} - {self.school_name}"
 
 
+class TrainingBatch(models.Model):
+    name = models.CharField('批次', max_length=80)
+    start_date = models.DateField('开始日期')
+    end_date = models.DateField('结束日期')
+    teachers = models.ManyToManyField(TeacherProfile, blank=True, related_name='training_batches', verbose_name='已确认教师')
+    confirmed_at = models.DateTimeField('名单确认时间', null=True, blank=True)
+    confirmed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='+', verbose_name='名单确认人')
+    revision = models.PositiveIntegerField('名单版本', default=0)
+
+    class Meta:
+        ordering = ['start_date', 'pk']
+        verbose_name = '研修批次'
+        verbose_name_plural = '研修批次'
+        constraints = [
+            models.CheckConstraint(condition=models.Q(end_date__gte=models.F('start_date')), name='training_batch_date_order'),
+            models.UniqueConstraint(fields=['name', 'start_date', 'end_date'], name='training_batch_unique_period'),
+        ]
+
+    @property
+    def export_name(self):
+        return f'吴忠中学教师跟岗实践暨“县中帮扶”交流培训 · {self.name}'
+
+    def __str__(self):
+        return f'{self.name}（{self.start_date:%Y-%m-%d} 至 {self.end_date:%m-%d}）'
+
+
 class InAppNotice(models.Model):
     CATEGORY_CHOICES = [
         ("lesson", "教学设计"),

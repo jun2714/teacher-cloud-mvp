@@ -11,7 +11,7 @@ test('archive center downloads a single teacher report and a selected category Z
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1672, height: 1050 });
-  await page.goto('/admin/archives/');
+  await page.goto('/admin/archives/?batch=');
   await expect(page.getByRole('heading', { name: '资料导出与批次归档', exact: true })).toBeVisible();
   await expect(page.locator('.sidebar .selected')).toHaveText('资料导出');
   await page.getByLabel('批次名称', { exact: true }).fill('教师研修归档验证');
@@ -19,6 +19,7 @@ test('archive center downloads a single teacher report and a selected category Z
   const start = new Date(Date.now() - 29 * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Shanghai' });
   await page.getByLabel('开始日期', { exact: true }).fill(start);
   await page.getByLabel('结束日期', { exact: true }).fill(end);
+  await page.getByRole('button', { name: '清空选择', exact: true }).click();
   await page.locator(`input[name="teacher_ids"][value="${fixtures.profile_id}"]`).check();
   await page.getByLabel('教师个人教研报告', { exact: true }).check();
   await page.getByRole('heading', { name: '资料导出与批次归档', exact: true }).click();
@@ -75,6 +76,62 @@ test('archive center downloads a single teacher report and a selected category Z
   await page.getByRole('button', { name: '导出所选资料 Word（多条打包 ZIP）', exact: true }).click();
   expect((await recordDownload).suggestedFilename()).toMatch(/\.docx$/);
   expect(errors).toEqual([]);
+});
+
+test('training batches find registration and usage, preserve a roster and export only its period', async ({ page }) => {
+  const fixtures = JSON.parse(readFileSync(new URL('../../../backend/data/dashboard-browser-session.json', import.meta.url), 'utf8'));
+  const f = fixtures.batch_roster;
+  await page.setViewportSize({ width: 1672, height: 1100 });
+  await page.goto('/admin/archives/');
+  await expect(page.locator('.archive-batch')).toHaveCount(4);
+  await expect(page.getByLabel('开始日期', { exact: true })).toHaveValue('2026-10-11');
+  await expect(page.getByLabel('结束日期', { exact: true })).toHaveValue('2026-10-17');
+  const row = id => page.locator('.archive-roster tbody tr').filter({ has: page.locator(`input[value="${id}"]`) });
+  await expect(row(f.early)).toContainText('非本期注册，本期有使用记录');
+  await expect(row(f.only_registered)).toContainText('本期注册，暂无本期使用记录');
+  await expect(row(f.primary)).toContainText('第二批也有使用线索');
+  await page.getByRole('combobox', { name: '显示教师', exact: true }).selectOption('registered');
+  await expect(row(f.early)).toBeHidden();
+  await page.getByRole('combobox', { name: '显示教师', exact: true }).selectOption('used');
+  await expect(row(f.early)).toBeVisible();
+  await page.getByRole('combobox', { name: '显示教师', exact: true }).selectOption('candidate');
+  await page.getByRole('button', { name: '清空选择', exact: true }).click();
+  for (const id of [f.primary, f.early]) await page.locator(`input[name="teacher_ids"][value="${id}"]`).check();
+  await page.getByRole('button', { name: '保存为第一批名单', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: '导出范围', exact: true })).toHaveValue('batch');
+  await expect(page.locator('.archive-batch.selected')).toContainText('已确认 2 位教师');
+  await page.locator('.archive-batch').filter({ hasText: '第二批' }).click();
+  await expect(page.getByLabel('开始日期', { exact: true })).toHaveValue('2026-10-18');
+  await expect(row(f.primary)).toContainText('已确认其他批次：第一批');
+  await page.locator('.archive-batch').filter({ hasText: '第一批' }).click();
+  await expect(page.locator('.archive-batch strong')).toHaveText(['第一批', '第二批', '第三批', '第四批']);
+  await expect(page.locator('input[name="teacher_ids"]:checked')).toHaveCount(2);
+  await page.getByLabel('学员研修成果', { exact: true }).check();
+  const pending = page.waitForEvent('download');
+  await page.getByRole('button', { name: '导出所选资料', exact: true }).click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toContain('第一批');
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(readFileSync(await download.path()));
+  const names = Object.keys(zip.files).filter(name => name.endsWith('.docx'));
+  expect(names).toHaveLength(2);
+  const bodies = await Promise.all(names.map(async name => {
+    const word = await JSZip.loadAsync(await zip.file(name).async('nodebuffer'));
+    return word.file('word/document.xml').async('string');
+  }));
+  expect(bodies.join('')).toContain('第一批专属实践笔记');
+  expect(bodies.join('')).not.toContain('第二批专属实践笔记');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: '../output/admin-batch-roster.png', fullPage: true, animations: 'disabled' });
+  await page.getByRole('button', { name: '深色', exact: true }).click();
+  await row(f.primary).hover();
+  expect(await row(f.primary).locator('td').first().evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe('rgb(255, 255, 255)');
+  await page.mouse.move(1500, 100);
+  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+  await page.screenshot({ path: '../output/admin-batch-roster-dark.png', fullPage: true, animations: 'disabled' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: '../output/admin-batch-roster-mobile.png', fullPage: true, animations: 'disabled' });
 });
 
 test('original login keeps moving particles, centered form and mobile usability', async ({ page, context }) => {

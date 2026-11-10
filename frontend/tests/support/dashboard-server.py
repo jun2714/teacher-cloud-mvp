@@ -42,6 +42,23 @@ answer = Answer.objects.create(question=question, author=teacher, answer_type='t
 question.accepted_answer = answer
 question.save(update_fields=['accepted_answer'])
 Answer.objects.create(question=question, answer_type='ai', content='## 可参考的活动\n\n可尝试“提问卡—小组筛选—全班讨论”的活动流程，并结合本班学情调整。')
+# Registration/use across two batches, exclusively in this isolated preview DB.
+from datetime import datetime
+from django.utils import timezone
+from learning.models import ResearchNote
+def at(value):
+    return timezone.make_aware(datetime.fromisoformat(value))
+batch_roster = {}
+for key, name, joined in [('primary', '本期注册与使用教师', '2026-10-12 09:00'), ('early', '提前注册教师', '2026-09-01 09:00'), ('only_registered', '本期仅注册教师', '2026-10-15 09:00')]:
+    person = User.objects.create_user(f'preview_batch_{key}', first_name=name)
+    User.objects.filter(pk=person.pk).update(date_joined=at(joined))
+    batch_roster[key] = person.teacher_profile.pk
+    if key != 'only_registered':
+        note = ResearchNote.objects.create(author=person, title=f'第一批专属实践笔记 · {name}', content='第一批专属实践笔记：观察课堂互动，准备完善学生评价标准。')
+        ResearchNote.objects.filter(pk=note.pk).update(created_at=at('2026-10-13 10:00'))
+    if key == 'primary':
+        note = ResearchNote.objects.create(author=person, title='第二批专属实践笔记', content='第二批专属实践笔记不应进入第一批导出。')
+        ResearchNote.objects.filter(pk=note.pk).update(created_at=at('2026-10-20 10:00'))
 (root / 'data' / 'dashboard-browser-session.json').write_text(json.dumps({
     'sessionid': client.cookies['sessionid'].value,
     'teacher_access': str(AccessToken.for_user(teacher)),
@@ -52,6 +69,7 @@ Answer.objects.create(question=question, answer_type='ai', content='## 可参考
     'message_id': chat_message.pk,
     'question_id': question.pk,
     'answer_id': answer.pk,
+    'batch_roster': batch_roster,
 }), encoding='utf-8')
 print('Dashboard preview ready on port 8002 (isolated database copy)', flush=True)
 call_command('runserver', '127.0.0.1:8002', use_reloader=False)
